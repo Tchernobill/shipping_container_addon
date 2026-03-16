@@ -83,10 +83,6 @@ def create_proxy_box(name, W, L, H):
                 
             loop[uv_layer].uv = (u, v_coord)
 
-    # Translate so BLF corner is at 0,0,0
-    bmesh.ops.translate(bm, vec=(-W/2, -L/2, -H/2), verts=bm.verts)
-    bmesh.ops.translate(bm, vec=(W/2, L/2, H/2), verts=bm.verts)
-
     bm.to_mesh(mesh)
     bm.free()
     

@@ -9,13 +9,20 @@ class MESH_OT_add_shipping_container(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        # Ensure a predictable context for object creation/selection.
+        if context.mode != 'OBJECT':
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except RuntimeError:
+                pass
+
         # Create the root EMPTY object
         root_empty = bpy.data.objects.new("ISO_Container_Root", None)
         root_empty.empty_display_type = 'CUBE'
         # 20cm, assuming 1 Blender unit == 1 meter (default scene scale).
         root_empty.empty_display_size = 0.2
-        
-        context.collection.objects.link(root_empty)
+
+        (context.collection or context.scene.collection).objects.link(root_empty)
         root_empty.location = context.scene.cursor.location
         root_empty.shipping_container.is_container = True
         
@@ -25,7 +32,7 @@ class MESH_OT_add_shipping_container(bpy.types.Operator):
         context.view_layer.objects.active = root_empty
         
         # Trigger initial geometry generation
-        rebuild_container(root_empty)
+        rebuild_container(root_empty, context=context)
         
         self.report({'INFO'}, "Shipping Container: Generated successfully.")
         return {'FINISHED'}
@@ -42,6 +49,12 @@ class OBJECT_OT_bake_container_to_single_mesh(bpy.types.Operator):
         return bool(find_container_root(context.active_object))
 
     def execute(self, context):
+        if context.mode != 'OBJECT':
+            try:
+                bpy.ops.object.mode_set(mode='OBJECT')
+            except RuntimeError:
+                pass
+
         root_obj = find_container_root(context.active_object)
         if not root_obj:
             self.report({'WARNING'}, "No Shipping Container root found for the active object.")
@@ -108,7 +121,7 @@ class OBJECT_OT_bake_container_to_single_mesh(bpy.types.Operator):
             context.scene.collection.children.link(new_col)
         
         # Unlink from current collections and link to the new one
-        for col in final_mesh.users_collection:
+        for col in list(final_mesh.users_collection):
             col.objects.unlink(final_mesh)
         bpy.data.collections[collection_name].objects.link(final_mesh)
         

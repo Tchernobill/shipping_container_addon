@@ -8,12 +8,12 @@ bl_info = {
     "category": "Add Mesh",
 }
 
-if "bpy" in locals():
-    import importlib
+import importlib
+
+if "utils" in locals():
+    # Reload submodules in a dependency-friendly order.
     importlib.reload(utils)
-    importlib.reload(properties)
-    importlib.reload(ui)
-    importlib.reload(operators)
+
     importlib.reload(panels)
     importlib.reload(frame)
     importlib.reload(corrugation)
@@ -23,13 +23,20 @@ if "bpy" in locals():
     importlib.reload(floor)
     importlib.reload(decals)
     importlib.reload(proxy)
+
     importlib.reload(materials)
     importlib.reload(rebuild)
+
+    importlib.reload(properties)
+    importlib.reload(operators)
+    importlib.reload(ui)
 else:
     from . import utils
     from . import properties
     from . import ui
     from . import operators
+
+    # Imported for dev reload convenience (called by rebuild/material systems).
     from .geometry import panels
     from .geometry import frame
     from .geometry import corrugation
@@ -39,13 +46,9 @@ else:
     from .geometry import floor
     from .geometry import decals
     from .geometry import proxy
+
     from .systems import materials
     from .systems import rebuild
-    
-    from .systems import rebuild
-    from . import properties
-    from . import operators
-    from . import ui
 
 modules = [
     properties,

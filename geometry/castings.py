@@ -37,7 +37,7 @@ def create_pill_cutter(name, length, width, depth, axis):
     bm.free()
     return obj
 
-def get_or_create_master_casting_mesh():
+def get_or_create_master_casting_mesh(context=None):
     """Generates the master ISO 1161 Corner Casting mesh ONCE and caches it."""
     mesh_name = "ISO_Casting_Master_Mesh"
     
@@ -60,7 +60,8 @@ def get_or_create_master_casting_mesh():
     bm.free()
     
     # Link to scene temporarily to evaluate booleans
-    bpy.context.scene.collection.objects.link(obj)
+    scene = context.scene if context is not None and getattr(context, "scene", None) is not None else bpy.context.scene
+    scene.collection.objects.link(obj)
     
     # 2. Create Cutters
     cut_top = create_pill_cutter("temp_cut_top", 0.110, 0.064, 0.300, 'Z')
@@ -75,14 +76,14 @@ def get_or_create_master_casting_mesh():
     cutters = [cut_top, cut_front, cut_side]
     
     for cutter in cutters:
-        bpy.context.scene.collection.objects.link(cutter)
+        scene.collection.objects.link(cutter)
         mod = obj.modifiers.new(name="Hole", type='BOOLEAN')
         mod.object = cutter
         mod.operation = 'DIFFERENCE'
         mod.solver = 'FLOAT' # FIX: Blender 5.0 uses 'FLOAT' instead of 'FAST'
         
     # 3. Evaluate modifiers and apply mesh
-    depsgraph = bpy.context.evaluated_depsgraph_get()
+    depsgraph = context.evaluated_depsgraph_get() if context is not None and hasattr(context, "evaluated_depsgraph_get") else bpy.context.evaluated_depsgraph_get()
     eval_obj = obj.evaluated_get(depsgraph)
     new_mesh = bpy.data.meshes.new_from_object(eval_obj)
     new_mesh.name = mesh_name
@@ -95,9 +96,9 @@ def get_or_create_master_casting_mesh():
         
     return new_mesh
 
-def create_corner_casting_instance(name, location, is_top, is_front, is_left):
+def create_corner_casting_instance(name, location, is_top, is_front, is_left, context=None):
     """Creates a lightweight instance of the master casting mesh."""
-    master_mesh = get_or_create_master_casting_mesh()
+    master_mesh = get_or_create_master_casting_mesh(context=context)
     
     # Create an object that uses the cached mesh data
     obj = bpy.data.objects.new(name, master_mesh)

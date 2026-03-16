@@ -3,17 +3,13 @@ import random
 
 def generate_container_id(seed=None):
     """Generates a random standard container ID based on the container's seed."""
-    if seed is not None:
-        random.seed(seed)
-        
+    rng = random.Random(seed) if seed is not None else random
+
     letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    owner_code = "".join(random.choices(letters, k=3)) + "U"
-    serial = "".join(random.choices("0123456789", k=6))
-    check_digit = random.choice("0123456789")
-    
-    if seed is not None:
-        random.seed()
-        
+    owner_code = "".join(rng.choices(letters, k=3)) + "U"
+    serial = "".join(rng.choices("0123456789", k=6))
+    check_digit = rng.choice("0123456789")
+
     return f"{owner_code} {serial} {check_digit}"
 
 def create_text_decal(name, text, size=0.15, align_x='LEFT', align_y='TOP'):

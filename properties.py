@@ -1,9 +1,16 @@
 import bpy
-from .systems.rebuild import rebuild_container
+from .systems import rebuild as rebuild_system
 
-def update_container(self, context):
-    """Callback triggered whenever a container property changes."""
-    rebuild_container(self.id_data)
+def update_container_rebuild(self, context):
+    """Callback triggered whenever a container property changes and requires a full rebuild."""
+    rebuild_system.rebuild_container(self.id_data, context=context)
+
+def update_door_angle(self, context):
+    """Fast path for door animation without a full rebuild when possible."""
+    root_obj = self.id_data
+    if rebuild_system.update_door_pivots(root_obj):
+        return
+    rebuild_system.rebuild_container(root_obj, context=context)
 
 class ShippingContainerProperties(bpy.types.PropertyGroup):
     is_container: bpy.props.BoolProperty(
@@ -21,7 +28,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
             ('40FT', "40ft", "40 foot standard container"),
         ],
         default='20FT',
-        update=update_container
+        update=update_container_rebuild
     )
     
     detail_level: bpy.props.EnumProperty(
@@ -32,7 +39,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
             ('LOW', "Low (Textured Box)", "Generates a simple proxy box with procedural materials")
         ],
         default='HIGH',
-        update=update_container
+        update=update_container_rebuild
     )
     
     door_open_angle: bpy.props.FloatProperty(
@@ -42,7 +49,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         min=0.0,
         max=4.71239,
         subtype='ANGLE',
-        update=update_container
+        update=update_door_angle
     )
     
     container_lod: bpy.props.EnumProperty(
@@ -54,19 +61,19 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
             ('LOD2', "LOD2 (Low)", "Simple box"),
         ],
         default='LOD0',
-        update=update_container
+        update=update_container_rebuild
     )
     
     # Panel toggles
-    show_front_panel: bpy.props.BoolProperty(name="Front Frame & Doors", default=True, update=update_container)
-    show_left_door: bpy.props.BoolProperty(name="Left Door", default=True, update=update_container)
-    show_right_door: bpy.props.BoolProperty(name="Right Door", default=True, update=update_container)
+    show_front_panel: bpy.props.BoolProperty(name="Front Frame & Doors", default=True, update=update_container_rebuild)
+    show_left_door: bpy.props.BoolProperty(name="Left Door", default=True, update=update_container_rebuild)
+    show_right_door: bpy.props.BoolProperty(name="Right Door", default=True, update=update_container_rebuild)
     
-    show_back_panel: bpy.props.BoolProperty(name="Back Panel", default=True, update=update_container)
-    show_left_panel: bpy.props.BoolProperty(name="Left Panel", default=True, update=update_container)
-    show_right_panel: bpy.props.BoolProperty(name="Right Panel", default=True, update=update_container)
-    show_floor: bpy.props.BoolProperty(name="Floor", default=True, update=update_container)
-    show_roof: bpy.props.BoolProperty(name="Roof", default=True, update=update_container)
+    show_back_panel: bpy.props.BoolProperty(name="Back Panel", default=True, update=update_container_rebuild)
+    show_left_panel: bpy.props.BoolProperty(name="Left Panel", default=True, update=update_container_rebuild)
+    show_right_panel: bpy.props.BoolProperty(name="Right Panel", default=True, update=update_container_rebuild)
+    show_floor: bpy.props.BoolProperty(name="Floor", default=True, update=update_container_rebuild)
+    show_roof: bpy.props.BoolProperty(name="Roof", default=True, update=update_container_rebuild)
 
 def register():
     bpy.utils.register_class(ShippingContainerProperties)

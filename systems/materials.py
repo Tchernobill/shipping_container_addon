@@ -57,8 +57,25 @@ def get_or_create_container_material():
     
     obj_info = nodes.new('ShaderNodeObjectInfo')
     obj_info.location = (-500, -200)
+
+    # Prefer the per-container seed (stable across all parts). Fall back to Object Info Random for
+    # objects that don't provide "container_seed".
+    has_seed = nodes.new('ShaderNodeMath')
+    has_seed.location = (-250, -50)
+    has_seed.operation = 'GREATER_THAN'
+    has_seed.inputs[1].default_value = 0.0
+
+    mix_seed = nodes.new('ShaderNodeMix')
+    mix_seed.location = (-50, -50)
+    mix_seed.data_type = 'FLOAT'
+    mix_seed.blend_type = 'MIX'
     
-    links.new(attr.outputs['Fac'], ramp.inputs['Fac'])
+    links.new(attr.outputs['Fac'], has_seed.inputs[0])
+    links.new(has_seed.outputs['Value'], mix_seed.inputs['Factor'])
+    links.new(obj_info.outputs['Random'], mix_seed.inputs['A'])
+    links.new(attr.outputs['Fac'], mix_seed.inputs['B'])
+
+    links.new(mix_seed.outputs['Result'], ramp.inputs['Fac'])
     links.new(ramp.outputs['Color'], bsdf.inputs['Base Color'])
     links.new(bsdf.outputs['BSDF'], out_node.inputs['Surface'])
     
@@ -121,6 +138,9 @@ def get_or_create_proxy_material():
     attr.location = (-1000, 200)
     attr.attribute_name = "container_seed"
     attr.attribute_type = 'OBJECT'
+
+    obj_info = nodes.new('ShaderNodeObjectInfo')
+    obj_info.location = (-1000, 0)
     
     color_ramp = nodes.new('ShaderNodeValToRGB')
     color_ramp.location = (-800, 200)
@@ -137,6 +157,16 @@ def get_or_create_proxy_material():
     for i, (pos, hex_c) in enumerate(colors):
         elements[i].position = pos
         elements[i].color = hex_to_linear_rgba(hex_c)
+
+    has_seed = nodes.new('ShaderNodeMath')
+    has_seed.location = (-600, 250)
+    has_seed.operation = 'GREATER_THAN'
+    has_seed.inputs[1].default_value = 0.0
+
+    mix_seed = nodes.new('ShaderNodeMix')
+    mix_seed.location = (-400, 250)
+    mix_seed.data_type = 'FLOAT'
+    mix_seed.blend_type = 'MIX'
         
     tex_coord = nodes.new('ShaderNodeTexCoord')
     tex_coord.location = (-1200, -200)
@@ -149,7 +179,7 @@ def get_or_create_proxy_material():
     mix_color = nodes.new('ShaderNodeMix')
     mix_color.data_type = 'RGBA'
     mix_color.blend_type = 'MULTIPLY'
-    mix_color.location = (-400, 100)
+    mix_color.location = (-200, 100)
     mix_color.inputs['Factor'].default_value = 1.0
     
     img_rough = get_or_create_proxy_image("proxy_roughness.png", (0.6, 0.6, 0.6, 1.0), is_data=True)
@@ -170,7 +200,12 @@ def get_or_create_proxy_material():
     links.new(tex_coord.outputs['UV'], node_rough.inputs['Vector'])
     links.new(tex_coord.outputs['UV'], node_normal.inputs['Vector'])
     
-    links.new(attr.outputs['Fac'], color_ramp.inputs['Fac'])
+    links.new(attr.outputs['Fac'], has_seed.inputs[0])
+    links.new(has_seed.outputs['Value'], mix_seed.inputs['Factor'])
+    links.new(obj_info.outputs['Random'], mix_seed.inputs['A'])
+    links.new(attr.outputs['Fac'], mix_seed.inputs['B'])
+
+    links.new(mix_seed.outputs['Result'], color_ramp.inputs['Fac'])
     
     links.new(color_ramp.outputs['Color'], mix_color.inputs['A'])
     links.new(node_diffuse.outputs['Color'], mix_color.inputs['B'])

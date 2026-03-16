@@ -13,15 +13,68 @@ from ..geometry.decals import generate_container_id, create_text_decal
 from ..geometry.proxy import create_proxy_box
 from .materials import get_or_create_container_material, get_or_create_wood_material, get_or_create_decal_material, get_or_create_proxy_material
 
-def rebuild_container(root_obj):
+def _get_collection_for_root(root_obj, context=None):
+    if root_obj.users_collection:
+        return root_obj.users_collection[0]
+    if context is not None:
+        if getattr(context, "collection", None) is not None:
+            return context.collection
+        if getattr(context, "scene", None) is not None:
+            return context.scene.collection
+    return bpy.context.scene.collection
+
+def _get_depsgraph(context=None):
+    if context is not None and hasattr(context, "evaluated_depsgraph_get"):
+        return context.evaluated_depsgraph_get()
+    return bpy.context.evaluated_depsgraph_get()
+
+def update_door_pivots(root_obj):
+    """Update door pivot rotations in-place for fast animation updates.
+
+    Returns True if the update succeeded or wasn't needed, False if a rebuild is recommended.
+    """
+    if not root_obj or not hasattr(root_obj, "shipping_container"):
+        return False
+    if not root_obj.shipping_container.is_container:
+        return False
+
+    props = root_obj.shipping_container
+    if props.detail_level == 'LOW':
+        return True
+    if not props.show_front_panel:
+        return True
+
+    angle = props.door_open_angle
+    updated_any = False
+
+    for child in root_obj.children:
+        if child.type != 'EMPTY':
+            continue
+        if child.name.startswith("Left_Door_Pivot"):
+            child.rotation_euler = (0.0, 0.0, -angle)
+            updated_any = True
+        elif child.name.startswith("Right_Door_Pivot"):
+            child.rotation_euler = (0.0, 0.0, angle)
+            updated_any = True
+
+    # If pivots are expected but missing (e.g., user deleted them), fall back to rebuild.
+    if (props.show_left_door or props.show_right_door) and not updated_any:
+        return False
+    return True
+
+def rebuild_container(root_obj, context=None):
     """Rebuilds the container geometry based on current properties."""
     if not root_obj or not root_obj.shipping_container.is_container:
         return
         
     # Generate a random seed for this specific container if it doesn't have one
     if "container_seed" not in root_obj:
-        root_obj["container_seed"] = random.random()
-    container_seed = root_obj["container_seed"]
+        # Keep strictly > 0.0 so shader fallbacks can reliably detect presence.
+        root_obj["container_seed"] = (random.random() * 0.999) + 0.001
+    container_seed = float(root_obj["container_seed"])
+    if container_seed <= 0.0:
+        container_seed = 0.001
+        root_obj["container_seed"] = container_seed
     
     # Generate the unique ID for this container
     container_id = generate_container_id(container_seed)
@@ -34,7 +87,7 @@ def rebuild_container(root_obj):
     H = size_data['height']
     
     clear_container_children(root_obj)
-    col = root_obj.users_collection[0] if root_obj.users_collection else bpy.context.scene.collection
+    col = _get_collection_for_root(root_obj, context=context)
     
     # --- LOD CHECK: IF LOW, SPAWN PROXY AND EXIT ---
     if props.detail_level == 'LOW':
@@ -64,9 +117,6 @@ def rebuild_container(root_obj):
     cy = cl / 2
     cz = ch / 2
     
-    clear_container_children(root_obj)
-    col = root_obj.users_collection[0] if root_obj.users_collection else bpy.context.scene.collection
-    
     # --- Generate Corner Castings ---
     castings = [
         ("Casting_BLF", (0, 0, 0), False, True, True),
@@ -80,7 +130,7 @@ def rebuild_container(root_obj):
     ]
     
     for name, loc, is_top, is_front, is_left in castings:
-        casting = create_corner_casting_instance(name, loc, is_top, is_front, is_left)
+        casting = create_corner_casting_instance(name, loc, is_top, is_front, is_left, context=context)
         col.objects.link(casting)
         casting.parent = root_obj
 
@@ -134,7 +184,7 @@ def rebuild_container(root_obj):
             mod.solver = 'FLOAT'
             
             # Apply modifier immediately for performance
-            depsgraph = bpy.context.evaluated_depsgraph_get()
+            depsgraph = _get_depsgraph(context=context)
             eval_obj = rail.evaluated_get(depsgraph)
             new_mesh = bpy.data.meshes.new_from_object(eval_obj)
             

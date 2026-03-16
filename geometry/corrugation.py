@@ -20,10 +20,10 @@ def _build_official_side_profile_points(width, depth):
     w_rib = 0.068
     w2 = 0.072
     pattern = [
-        (w1, 0.0),
-        (w_rib, depth),
-        (w2, 0.0),
-        (w_rib, depth),
+        (w1, 0.0), # -- 70mm flat
+        (w_rib, depth), # -- 68mm rib at depth
+        (w2, 0.0), # -- 72mm flat
+        (w_rib, depth), # -- 68mm rib at depth
     ]
     pitch = sum(w for w, _z in pattern)
 
@@ -117,7 +117,7 @@ def create_corrugated_panel(
     rotation,
     rib_spacing=0.305,
     rib_depth=0.028,
-    profile="OFFICIAL_SIDE",
+    profile="LEGACY", # "OFFICIAL_SIDE" or "LEGACY"
     corrugation_depth=0.036,
 ):
     """Creates a corrugated panel mesh.
