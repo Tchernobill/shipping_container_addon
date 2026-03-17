@@ -52,18 +52,6 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         update=update_door_angle
     )
     
-    container_lod: bpy.props.EnumProperty(
-        name="LOD",
-        description="Level of Detail",
-        items=[
-            ('LOD0', "LOD0 (High)", "Full detail"),
-            ('LOD1', "LOD1 (Medium)", "Simplified"),
-            ('LOD2', "LOD2 (Low)", "Simple box"),
-        ],
-        default='LOD0',
-        update=update_container_rebuild
-    )
-    
     # Panel toggles
     show_front_panel: bpy.props.BoolProperty(name="Front Frame & Doors", default=True, update=update_container_rebuild)
     show_left_door: bpy.props.BoolProperty(name="Left Door", default=True, update=update_container_rebuild)

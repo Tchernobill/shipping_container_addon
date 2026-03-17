@@ -65,6 +65,11 @@ def unregister():
     for mod in reversed(modules):
         if hasattr(mod, "unregister"):
             mod.unregister()
+    # Clean up the cached casting mesh
+    if "ISO_Casting_Master_Mesh" in bpy.data.meshes:
+        m = bpy.data.meshes["ISO_Casting_Master_Mesh"]
+        m.use_fake_user = False
+        bpy.data.meshes.remove(m)
 
 if __name__ == "__main__":
     register()

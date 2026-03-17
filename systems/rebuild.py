@@ -66,7 +66,7 @@ def rebuild_container(root_obj, context=None):
     """Rebuilds the container geometry based on current properties."""
     if not root_obj or not root_obj.shipping_container.is_container:
         return
-        
+
     # Generate a random seed for this specific container if it doesn't have one
     if "container_seed" not in root_obj:
         # Keep strictly > 0.0 so shader fallbacks can reliably detect presence.
@@ -75,26 +75,31 @@ def rebuild_container(root_obj, context=None):
     if container_seed <= 0.0:
         container_seed = 0.001
         root_obj["container_seed"] = container_seed
-    
+
     # Generate the unique ID for this container
     container_id = generate_container_id(container_seed)
-        
+
     props = root_obj.shipping_container
     size_data = CONTAINER_SIZES[props.container_size]
-    
+
     L = size_data['length']
     W = size_data['width']
     H = size_data['height']
-    
+
+    # TODO: props.container_lod ('LOD0'/'LOD1'/'LOD2') is defined in properties.py but is
+    # not yet consumed here.  Currently only props.detail_level ('HIGH'/'LOW') drives the
+    # proxy/full-detail switch.  Wire up container_lod or remove the property to avoid
+    # silent no-ops when the user changes it in the UI.
+
     clear_container_children(root_obj)
     col = _get_collection_for_root(root_obj, context=context)
-    
+
     # --- LOD CHECK: IF LOW, SPAWN PROXY AND EXIT ---
     if props.detail_level == 'LOW':
         proxy = create_proxy_box("Container_Proxy", W, L, H)
         col.objects.link(proxy)
         proxy.parent = root_obj
-        
+
         proxy_mat = get_or_create_proxy_material()
         proxy["container_seed"] = container_seed
         if proxy.data.materials:
@@ -102,22 +107,22 @@ def rebuild_container(root_obj, context=None):
         else:
             proxy.data.materials.append(proxy_mat)
         return
-    
+
     # Frame profile dimensions (35% smaller than 0.15m)
-    pw = 0.0975 
-    rh = 0.0975 
-    
+    pw = 0.0975
+    rh = 0.0975
+
     # ISO 1161 Casting Dimensions
-    cw = 0.162 
-    cl = 0.178 
-    ch = 0.118 
-    
+    cw = 0.162
+    cl = 0.178
+    ch = 0.118
+
     # Casting Centers (Offsets from absolute corners)
     cx = cw / 2
     cy = cl / 2
     cz = ch / 2
-    
-    # --- Generate Corner Castings ---    # --- Conditional Frame Elements ---
+
+    # --- Conditional Frame Elements ---
     # Define conditions as lambdas for clarity
     p = props  # shortcut
     casting_conditions = {
@@ -132,41 +137,39 @@ def rebuild_container(root_obj, context=None):
     }
 
     post_conditions = {
-        "Front_Left_Post": lambda: p.show_front_panel or p.show_left_panel,
+        "Front_Left_Post":  lambda: p.show_front_panel or p.show_left_panel,
         "Front_Right_Post": lambda: p.show_front_panel or p.show_right_panel,
-        "Back_Left_Post": lambda: p.show_back_panel or p.show_left_panel,
-        "Back_Right_Post": lambda: p.show_back_panel or p.show_right_panel,
+        "Back_Left_Post":   lambda: p.show_back_panel  or p.show_left_panel,
+        "Back_Right_Post":  lambda: p.show_back_panel  or p.show_right_panel,
     }
 
     fb_rail_conditions = {
         "Front_Bottom_Rail": lambda: p.show_front_panel or p.show_floor,
-        "Front_Top_Rail": lambda: p.show_front_panel or p.show_roof,
-        "Back_Bottom_Rail": lambda: p.show_back_panel or p.show_floor,
-        "Back_Top_Rail": lambda: p.show_back_panel or p.show_roof,
+        "Front_Top_Rail":    lambda: p.show_front_panel or p.show_roof,
+        "Back_Bottom_Rail":  lambda: p.show_back_panel  or p.show_floor,
+        "Back_Top_Rail":     lambda: p.show_back_panel  or p.show_roof,
     }
 
     side_rail_conditions = {
-        "Left_Bottom_Rail": lambda: p.show_left_panel or p.show_floor,
-        "Left_Top_Rail": lambda: p.show_left_panel or p.show_roof,
+        "Left_Bottom_Rail":  lambda: p.show_left_panel  or p.show_floor,
+        "Left_Top_Rail":     lambda: p.show_left_panel  or p.show_roof,
         "Right_Bottom_Rail": lambda: p.show_right_panel or p.show_floor,
-        "Right_Top_Rail": lambda: p.show_right_panel or p.show_roof,
+        "Right_Top_Rail":    lambda: p.show_right_panel or p.show_roof,
     }
 
-    # --- Frame dimensions (these were missing in the previous patch) ---
+    # --- Frame dimensions ---
     post_h = H - (2 * ch)
-    fb_rail_len = W - (2 * cw)
-    side_rail_len = L - (2 * cl)
 
     # --- Generate Corner Castings (only if condition met) ---
     castings = [
-        ("Casting_BLF", (0, 0, 0), False, True, True),
-        ("Casting_BRF", (W, 0, 0), False, True, False),
+        ("Casting_BLF", (0, 0, 0), False, True,  True),
+        ("Casting_BRF", (W, 0, 0), False, True,  False),
         ("Casting_BLB", (0, L, 0), False, False, True),
         ("Casting_BRB", (W, L, 0), False, False, False),
-        ("Casting_TLF", (0, 0, H), True, True, True),
-        ("Casting_TRF", (W, 0, H), True, True, False),
-        ("Casting_TLB", (0, L, H), True, False, True),
-        ("Casting_TRB", (W, L, H), True, False, False),
+        ("Casting_TLF", (0, 0, H), True,  True,  True),
+        ("Casting_TRF", (W, 0, H), True,  True,  False),
+        ("Casting_TLB", (0, L, H), True,  False, True),
+        ("Casting_TRB", (W, L, H), True,  False, False),
     ]
 
     for name, loc, is_top, is_front, is_left in castings:
@@ -177,10 +180,10 @@ def rebuild_container(root_obj, context=None):
 
     # --- Generate Posts ---
     posts = [
-        ("Front_Left_Post", (cx, cy, H/2)),
-        ("Front_Right_Post", (W - cx, cy, H/2)),
-        ("Back_Left_Post", (cx, L - cy, H/2)),
-        ("Back_Right_Post", (W - cx, L - cy, H/2)),
+        ("Front_Left_Post",  (cx,       cy,       H / 2)),
+        ("Front_Right_Post", (W - cx,   cy,       H / 2)),
+        ("Back_Left_Post",   (cx,       L - cy,   H / 2)),
+        ("Back_Right_Post",  (W - cx,   L - cy,   H / 2)),
     ]
 
     for name, loc in posts:
@@ -189,124 +192,117 @@ def rebuild_container(root_obj, context=None):
             col.objects.link(post)
             post.parent = root_obj
 
-    # --- Create cutters for forklift pockets (only if any bottom rail will exist) ---
-    any_bottom_rail = any(cond() for cond in [
-        fb_rail_conditions["Front_Bottom_Rail"],
-        fb_rail_conditions["Back_Bottom_Rail"],
+    # --- Create forklift-pocket cutters ---
+    # Forklift pockets are centred on the container's long axis (Y), so they only
+    # intersect the LEFT and RIGHT bottom rails.  Front/Back bottom rails run along
+    # the short axis (X) at y≈cy and y≈L-cy, which is nowhere near the pocket
+    # positions (y = L/2 ± 1.025 m), so we never need to cut them.
+    any_side_bottom_rail = any(cond() for cond in [
         side_rail_conditions["Left_Bottom_Rail"],
         side_rail_conditions["Right_Bottom_Rail"],
     ])
 
     pocket_cutters = None
-    if any_bottom_rail:
+    if any_side_bottom_rail:
         pocket_cutters = create_forklift_pocket_cutters("Pocket_Cutters", W)
         col.objects.link(pocket_cutters)
-        pocket_cutters.location = (W / 2, L / 2, cz)  # centered like floor assembly
+        pocket_cutters.location = (W / 2, L / 2, cz)  # centred like floor assembly
 
     # --- Generate Front/Back Rails ---
-    fb_rail_len = W - (2 * cw)
-    fb_rails = [
-        ("Front_Bottom_Rail", (W/2, cy, cz)),
-        ("Front_Top_Rail", (W/2, cy, H - cz)),
-        ("Back_Bottom_Rail", (W/2, L - cy, cz)),
-        ("Back_Top_Rail", (W/2, L - cy, H - cz)),
-    ]
+    # FIX: pocket_cutters is kept alive inside a try/finally so it is always removed
+    # from the scene even if any boolean evaluation raises an exception mid-rebuild.
+    try:
+        fb_rail_len = W - (2 * cw)
+        fb_rails = [
+            ("Front_Bottom_Rail", (W / 2, cy,      cz)),
+            ("Front_Top_Rail",    (W / 2, cy,      H - cz)),
+            ("Back_Bottom_Rail",  (W / 2, L - cy,  cz)),
+            ("Back_Top_Rail",     (W / 2, L - cy,  H - cz)),
+        ]
 
-    for name, loc in fb_rails:
-        if fb_rail_conditions.get(name, lambda: False)():
-            rail = create_box(name, fb_rail_len, pw, rh, loc)
-            col.objects.link(rail)
-            rail.parent = root_obj
+        for name, loc in fb_rails:
+            if fb_rail_conditions.get(name, lambda: False)():
+                rail = create_box(name, fb_rail_len, pw, rh, loc)
+                col.objects.link(rail)
+                rail.parent = root_obj
+                # Front/Back bottom rails do NOT intersect the forklift pockets —
+                # no boolean needed here.
 
-            # Apply boolean cut if this is a bottom rail and cutters exist
-            if "Bottom" in name and pocket_cutters:
-                mod = rail.modifiers.new(name="Forklift_Hole", type='BOOLEAN')
-                mod.object = pocket_cutters
-                mod.operation = 'DIFFERENCE'
-                mod.solver = 'MANIFOLD'  # ← fixed from 'FLOAT'
+        # --- Generate Side Rails ---
+        side_rail_len = L - (2 * cl)
+        side_rails = [
+            ("Left_Bottom_Rail",  (cx,       L / 2, cz)),
+            ("Left_Top_Rail",     (cx,       L / 2, H - cz)),
+            ("Right_Bottom_Rail", (W - cx,   L / 2, cz)),
+            ("Right_Top_Rail",    (W - cx,   L / 2, H - cz)),
+        ]
 
-                # Apply immediately
-                depsgraph = _get_depsgraph(context=context)
-                eval_obj = rail.evaluated_get(depsgraph)
-                new_mesh = bpy.data.meshes.new_from_object(eval_obj)
-                old_mesh = rail.data
-                rail.data = new_mesh
-                bpy.data.meshes.remove(old_mesh)
-                rail.modifiers.clear()
+        for name, loc in side_rails:
+            if side_rail_conditions.get(name, lambda: False)():
+                rail = create_box(name, pw, side_rail_len, rh, loc)
+                col.objects.link(rail)
+                rail.parent = root_obj
 
-    # --- Generate Side Rails ---
-    side_rail_len = L - (2 * cl)
-    side_rails = [
-        ("Left_Bottom_Rail", (cx, L/2, cz)),
-        ("Left_Top_Rail", (cx, L/2, H - cz)),
-        ("Right_Bottom_Rail", (W - cx, L/2, cz)),
-        ("Right_Top_Rail", (W - cx, L/2, H - cz)),
-    ]
+                # Only side bottom rails can intersect the forklift pockets.
+                if "Bottom" in name and pocket_cutters:
+                    mod = rail.modifiers.new(name="Forklift_Hole", type='BOOLEAN')
+                    mod.object = pocket_cutters
+                    mod.operation = 'DIFFERENCE'
+                    mod.solver = 'MANIFOLD'
 
-    for name, loc in side_rails:
-        if side_rail_conditions.get(name, lambda: False)():
-            rail = create_box(name, pw, side_rail_len, rh, loc)
-            col.objects.link(rail)
-            rail.parent = root_obj
+                    depsgraph = _get_depsgraph(context=context)
+                    eval_obj = rail.evaluated_get(depsgraph)
+                    new_mesh = bpy.data.meshes.new_from_object(eval_obj)
+                    old_mesh = rail.data
+                    rail.data = new_mesh
+                    bpy.data.meshes.remove(old_mesh)
+                    rail.modifiers.clear()
 
-            # Apply boolean cut if this is a bottom rail and cutters exist
-            if "Bottom" in name and pocket_cutters:
-                mod = rail.modifiers.new(name="Forklift_Hole", type='BOOLEAN')
-                mod.object = pocket_cutters
-                mod.operation = 'DIFFERENCE'
-                mod.solver = 'MANIFOLD'
-
-                depsgraph = _get_depsgraph(context=context)
-                eval_obj = rail.evaluated_get(depsgraph)
-                new_mesh = bpy.data.meshes.new_from_object(eval_obj)
-                old_mesh = rail.data
-                rail.data = new_mesh
-                bpy.data.meshes.remove(old_mesh)
-                rail.modifiers.clear()
-
-    # Clean up cutters if they were created
-    if pocket_cutters:
-        remove_object_and_orphan_data(pocket_cutters)
+    finally:
+        # Always remove the cutter from the scene, even if an exception occurred above.
+        if pocket_cutters is not None:
+            remove_object_and_orphan_data(pocket_cutters)
+            pocket_cutters = None
 
     # --- Generate Panels & Doors ---
     panel_w = W - (2 * cx) - pw
     panel_l = L - (2 * cy) - pw
     panel_h = H - (2 * cz) - rh
-    
+
     if props.show_front_panel:
         door_w = panel_w / 2
         door_h = panel_h
-        
+
         if props.show_left_door:
             left_pivot = bpy.data.objects.new("Left_Door_Pivot", None)
             left_pivot.empty_display_type = 'ARROWS'
             left_pivot.empty_display_size = 0.3
-            left_pivot.location = (cx + pw/2, cy, cz + rh/2)
+            left_pivot.location = (cx + pw / 2, cy, cz + rh / 2)
             left_pivot.rotation_euler = (0, 0, -props.door_open_angle)
             col.objects.link(left_pivot)
             left_pivot.parent = root_obj
             left_pivot["is_container_part"] = True
-            
+
             for comp in ['PANEL', 'BARS', 'HINGES', 'HANDLES']:
                 obj = create_door_component(f"Left_{comp.capitalize()}", comp, door_w, door_h, True)
                 col.objects.link(obj)
                 obj.parent = left_pivot
-                
+
         if props.show_right_door:
             right_pivot = bpy.data.objects.new("Right_Door_Pivot", None)
             right_pivot.empty_display_type = 'ARROWS'
             right_pivot.empty_display_size = 0.3
-            right_pivot.location = (W - cx - pw/2, cy, cz + rh/2)
+            right_pivot.location = (W - cx - pw / 2, cy, cz + rh / 2)
             right_pivot.rotation_euler = (0, 0, props.door_open_angle)
             col.objects.link(right_pivot)
             right_pivot.parent = root_obj
             right_pivot["is_container_part"] = True
-            
+
             for comp in ['PANEL', 'BARS', 'HINGES', 'HANDLES']:
                 obj = create_door_component(f"Right_{comp.capitalize()}", comp, door_w, door_h, False)
                 col.objects.link(obj)
                 obj.parent = right_pivot
-                
+
             # --- ADD DECALS TO RIGHT DOOR ---
             # Container ID (Top Right)
             decal_id = create_text_decal("Decal_ID", container_id, size=0.12, align_x='RIGHT')
@@ -314,7 +310,7 @@ def rebuild_container(root_obj, context=None):
             decal_id.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_id)
             decal_id.parent = right_pivot
-            
+
             # Weight Specs (Middle Left)
             specs_text = "MAX GROSS  30,480 KG\nTARE       2,200 KG\nNET        28,280 KG\nCU. CAP.   33.2 CU.M"
             decal_specs = create_text_decal("Decal_Specs", specs_text, size=0.06, align_x='LEFT')
@@ -323,74 +319,87 @@ def rebuild_container(root_obj, context=None):
             col.objects.link(decal_specs)
             decal_specs.parent = right_pivot
 
-# Show Back Panel
+    # --- Show Back Panel ---
     if props.show_back_panel:
-        back = create_corrugated_panel("Back_Assembly", panel_w, panel_h, (W/2, L - cy, H/2), (math.radians(90), 0, math.radians(180)))
+        back = create_corrugated_panel(
+            "Back_Assembly", panel_w, panel_h,
+            (W / 2, L - cy, H / 2),
+            (math.radians(90), 0, math.radians(180)),
+        )
         col.objects.link(back)
         back.parent = root_obj
 
-# Show Left Panel
+    # --- Show Left Panel ---
     if props.show_left_panel:
-        left = create_corrugated_panel("Left_Side_Assembly", panel_l, panel_h, (cx, L/2, H/2), (math.radians(90), 0, math.radians(-90)))
+        left = create_corrugated_panel(
+            "Left_Side_Assembly", panel_l, panel_h,
+            (cx, L / 2, H / 2),
+            (math.radians(90), 0, math.radians(-90)),
+        )
         col.objects.link(left)
         left.parent = root_obj
 
-# Show Right Panel
+    # --- Show Right Panel ---
     if props.show_right_panel:
-        right = create_corrugated_panel("Right_Side_Assembly", panel_l, panel_h, (W - cx, L/2, H/2), (math.radians(90), 0, math.radians(90)))
+        right = create_corrugated_panel(
+            "Right_Side_Assembly", panel_l, panel_h,
+            (W - cx, L / 2, H / 2),
+            (math.radians(90), 0, math.radians(90)),
+        )
         col.objects.link(right)
         right.parent = root_obj
 
-# Show Front Panel
+    # --- Show Floor ---
     if props.show_floor:
         # Group floor components under an Empty
         floor_assembly = bpy.data.objects.new("Floor_Assembly", None)
         floor_assembly.empty_display_type = 'PLAIN_AXES'
         floor_assembly.empty_display_size = 0.5
-        
+
         # Position the floor assembly near the bottom rails
-        floor_z = cz + rh/2
-        floor_assembly.location = (W/2, L/2, floor_z)
+        floor_z = cz + rh / 2
+        floor_assembly.location = (W / 2, L / 2, floor_z)
         col.objects.link(floor_assembly)
         floor_assembly.parent = root_obj
         floor_assembly["is_container_part"] = True
-        
+
         # 1. Floor Cross Members (Steel beams)
         cross_members = create_floor_cross_members("Floor_Cross_Members", panel_w, panel_l)
         # Offset downward so they sit perfectly flush with the bottom of the side rails
-        cross_members.location = (0, 0, -rh/2) 
+        cross_members.location = (0, 0, -rh / 2)
         col.objects.link(cross_members)
         cross_members.parent = floor_assembly
-        
+
         # 2. Wooden Floor (Marine Plywood)
         wood_floor = create_wooden_floor("Wooden_Floor", panel_w, panel_l)
         # Offset upward so it sits perfectly on top of the cross members
-        wood_floor.location = (0, 0, 0.014) 
+        wood_floor.location = (0, 0, 0.014)
         col.objects.link(wood_floor)
         wood_floor.parent = floor_assembly
-        
+
         # 3. Forklift Pocket Tubes
         pocket_tubes = create_forklift_pocket_tubes("Forklift_Pockets", panel_w)
-        pocket_tubes.location = (0, 0, -rh/2)
+        pocket_tubes.location = (0, 0, -rh / 2)
         col.objects.link(pocket_tubes)
         pocket_tubes.parent = floor_assembly
 
-# Show Roof Panel
+    # --- Show Roof ---
     if props.show_roof:
         # Group roof components under an Empty
         roof_assembly = bpy.data.objects.new("Roof_Assembly", None)
         roof_assembly.empty_display_type = 'PLAIN_AXES'
         roof_assembly.empty_display_size = 0.5
-        
+
         # Position the roof assembly at the top of the frame
-        roof_z = H - cz - rh/2
-        roof_assembly.location = (W/2, L/2, roof_z)
+        roof_z = H - cz - rh / 2
+        roof_assembly.location = (W / 2, L / 2, roof_z)
         col.objects.link(roof_assembly)
         roof_assembly.parent = root_obj
         roof_assembly["is_container_part"] = True
-        
+
         # 1. Corrugated Roof Panel
-        # Roof corrugation is a different spec than side wall corrugation; keep the legacy profile for now.
+        # Roof corrugation is a different spec than side wall corrugation; keep the official
+        # side profile for now.
         roof_panel = create_corrugated_panel(
             "Roof_Panel",
             panel_l,
@@ -401,30 +410,29 @@ def rebuild_container(root_obj, context=None):
         )
         col.objects.link(roof_panel)
         roof_panel.parent = roof_assembly
-        
+
         # 2. Roof Bows
         bows = create_roof_bows("Roof_Bows", panel_w, panel_l)
-        bows.location = (0, 0, -0.024) # Offset downward by the depth of the corrugation
+        bows.location = (0, 0, -0.024)  # Offset downward by the depth of the corrugation
         col.objects.link(bows)
         bows.parent = roof_assembly
 
     # --- Apply Materials ---
     metal_mat = get_or_create_container_material()
-    wood_mat = get_or_create_wood_material()
+    wood_mat  = get_or_create_wood_material()
     decal_mat = get_or_create_decal_material()
-    
+
     for obj in root_obj.children_recursive:
         if obj.type == 'MESH':
             # Assign the seed to the object so the Attribute node can read it
             obj["container_seed"] = container_seed
-            
-            # Assign material
+
             mat_to_assign = wood_mat if "Wood" in obj.name else metal_mat
             if obj.data.materials:
                 obj.data.materials[0] = mat_to_assign
             else:
                 obj.data.materials.append(mat_to_assign)
-                
+
         elif obj.type == 'FONT':
             if obj.data.materials:
                 obj.data.materials[0] = decal_mat

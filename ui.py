@@ -27,7 +27,7 @@ def draw_container_controls(layout, obj):
 
     # Visibility toggles
     box = layout.box()
-    box.label(text="Visibility Toggles:", icon='RESTRICT_VIEW_OFF')
+    box.label(text="Parts Toggles:", icon='RESTRICT_VIEW_OFF')
 
     col = box.column(align=True)
     col.prop(props, "show_front_panel")

@@ -24,7 +24,7 @@ def create_pill_cutter(name, length, width, depth, axis):
                 if v.co.x > 0.001: v.co.x += stretch
                 elif v.co.x < -0.001: v.co.x -= stretch
             elif axis == 'X': 
-                if v.co.y > 0.001: v.co.y += stretch
+                if v.co.x > 0.001: v.co.x += stretch # if v.co.y > 0.001: v.co.y += stretch
                 elif v.co.y < -0.001: v.co.y -= stretch
                 
     # Rotate to point along the correct axis
@@ -80,7 +80,7 @@ def get_or_create_master_casting_mesh(context=None):
         mod = obj.modifiers.new(name="Hole", type='BOOLEAN')
         mod.object = cutter
         mod.operation = 'DIFFERENCE'
-        mod.solver = 'FLOAT' # FIX: Blender 5.0 uses 'FLOAT' instead of 'FAST'
+        mod.solver = 'MANIFOLD'
         
     # 3. Evaluate modifiers and apply mesh
     depsgraph = context.evaluated_depsgraph_get() if context is not None and hasattr(context, "evaluated_depsgraph_get") else bpy.context.evaluated_depsgraph_get()
