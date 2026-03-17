@@ -63,6 +63,8 @@ class OBJECT_PT_shipping_container_properties(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context = 'object'
 
+    bl_order = 1 # Ensure this panel appears near the top of the Object properties
+
     def draw(self, context):
         draw_container_controls(self.layout, context.object)
 

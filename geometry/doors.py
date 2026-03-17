@@ -174,7 +174,7 @@ def create_door_component(name, comp_type, width, height, is_left):
         # Two vertical locking bars per door
         bar_xs = [width * 0.3 * x_dir, width * 0.7 * x_dir]
         for bx in bar_xs:
-            geom = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=8, radius1=0.015, radius2=0.015, depth=height+0.05
+            geom = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=8, radius1=0.015, radius2=0.015, depth=height+0.05)
             bmesh.ops.translate(bm, verts=geom['verts'], vec=(bx, -0.035, height/2))
             
     elif comp_type == 'HINGES':
