@@ -117,7 +117,47 @@ def rebuild_container(root_obj, context=None):
     cy = cl / 2
     cz = ch / 2
     
-    # --- Generate Corner Castings ---
+    # --- Generate Corner Castings ---    # --- Conditional Frame Elements ---
+    # Define conditions as lambdas for clarity
+    p = props  # shortcut
+    casting_conditions = {
+        "Casting_BLF": lambda: p.show_front_panel or p.show_left_panel or p.show_floor,
+        "Casting_BRF": lambda: p.show_front_panel or p.show_right_panel or p.show_floor,
+        "Casting_BLB": lambda: p.show_back_panel or p.show_left_panel or p.show_floor,
+        "Casting_BRB": lambda: p.show_back_panel or p.show_right_panel or p.show_floor,
+        "Casting_TLF": lambda: p.show_front_panel or p.show_left_panel or p.show_roof,
+        "Casting_TRF": lambda: p.show_front_panel or p.show_right_panel or p.show_roof,
+        "Casting_TLB": lambda: p.show_back_panel or p.show_left_panel or p.show_roof,
+        "Casting_TRB": lambda: p.show_back_panel or p.show_right_panel or p.show_roof,
+    }
+
+    post_conditions = {
+        "Front_Left_Post": lambda: p.show_front_panel or p.show_left_panel,
+        "Front_Right_Post": lambda: p.show_front_panel or p.show_right_panel,
+        "Back_Left_Post": lambda: p.show_back_panel or p.show_left_panel,
+        "Back_Right_Post": lambda: p.show_back_panel or p.show_right_panel,
+    }
+
+    fb_rail_conditions = {
+        "Front_Bottom_Rail": lambda: p.show_front_panel or p.show_floor,
+        "Front_Top_Rail": lambda: p.show_front_panel or p.show_roof,
+        "Back_Bottom_Rail": lambda: p.show_back_panel or p.show_floor,
+        "Back_Top_Rail": lambda: p.show_back_panel or p.show_roof,
+    }
+
+    side_rail_conditions = {
+        "Left_Bottom_Rail": lambda: p.show_left_panel or p.show_floor,
+        "Left_Top_Rail": lambda: p.show_left_panel or p.show_roof,
+        "Right_Bottom_Rail": lambda: p.show_right_panel or p.show_floor,
+        "Right_Top_Rail": lambda: p.show_right_panel or p.show_roof,
+    }
+
+    # --- Frame dimensions (these were missing in the previous patch) ---
+    post_h = H - (2 * ch)
+    fb_rail_len = W - (2 * cw)
+    side_rail_len = L - (2 * cl)
+
+    # --- Generate Corner Castings (only if condition met) ---
     castings = [
         ("Casting_BLF", (0, 0, 0), False, True, True),
         ("Casting_BRF", (W, 0, 0), False, True, False),
@@ -128,73 +168,105 @@ def rebuild_container(root_obj, context=None):
         ("Casting_TLB", (0, L, H), True, False, True),
         ("Casting_TRB", (W, L, H), True, False, False),
     ]
-    
+
     for name, loc, is_top, is_front, is_left in castings:
-        casting = create_corner_casting_instance(name, loc, is_top, is_front, is_left, context=context)
-        col.objects.link(casting)
-        casting.parent = root_obj
+        if casting_conditions.get(name, lambda: False)():
+            casting = create_corner_casting_instance(name, loc, is_top, is_front, is_left, context=context)
+            col.objects.link(casting)
+            casting.parent = root_obj
 
-    # --- Generate Frame (Aligned to Casting Centers) ---
-    post_h = H - (2 * ch)
+    # --- Generate Posts ---
     posts = [
-        ("Front_Left_Post",  (cx, cy, H/2)),
+        ("Front_Left_Post", (cx, cy, H/2)),
         ("Front_Right_Post", (W - cx, cy, H/2)),
-        ("Back_Left_Post",   (cx, L - cy, H/2)),
-        ("Back_Right_Post",  (W - cx, L - cy, H/2)),
+        ("Back_Left_Post", (cx, L - cy, H/2)),
+        ("Back_Right_Post", (W - cx, L - cy, H/2)),
     ]
-    for name, loc in posts:
-        post = create_box(name, pw, pw, post_h, loc)
-        col.objects.link(post)
-        post.parent = root_obj
 
+    for name, loc in posts:
+        if post_conditions.get(name, lambda: False)():
+            post = create_box(name, pw, pw, post_h, loc)
+            col.objects.link(post)
+            post.parent = root_obj
+
+    # --- Create cutters for forklift pockets (only if any bottom rail will exist) ---
+    any_bottom_rail = any(cond() for cond in [
+        fb_rail_conditions["Front_Bottom_Rail"],
+        fb_rail_conditions["Back_Bottom_Rail"],
+        side_rail_conditions["Left_Bottom_Rail"],
+        side_rail_conditions["Right_Bottom_Rail"],
+    ])
+
+    pocket_cutters = None
+    if any_bottom_rail:
+        pocket_cutters = create_forklift_pocket_cutters("Pocket_Cutters", W)
+        col.objects.link(pocket_cutters)
+        pocket_cutters.location = (W / 2, L / 2, cz)  # centered like floor assembly
+
+    # --- Generate Front/Back Rails ---
     fb_rail_len = W - (2 * cw)
     fb_rails = [
         ("Front_Bottom_Rail", (W/2, cy, cz)),
-        ("Front_Top_Rail",    (W/2, cy, H - cz)),
-        ("Back_Bottom_Rail",  (W/2, L - cy, cz)),
-        ("Back_Top_Rail",     (W/2, L - cy, H - cz)),
+        ("Front_Top_Rail", (W/2, cy, H - cz)),
+        ("Back_Bottom_Rail", (W/2, L - cy, cz)),
+        ("Back_Top_Rail", (W/2, L - cy, H - cz)),
     ]
-    for name, loc in fb_rails:
-        rail = create_box(name, fb_rail_len, pw, rh, loc)
-        col.objects.link(rail)
-        rail.parent = root_obj
 
+    for name, loc in fb_rails:
+        if fb_rail_conditions.get(name, lambda: False)():
+            rail = create_box(name, fb_rail_len, pw, rh, loc)
+            col.objects.link(rail)
+            rail.parent = root_obj
+
+            # Apply boolean cut if this is a bottom rail and cutters exist
+            if "Bottom" in name and pocket_cutters:
+                mod = rail.modifiers.new(name="Forklift_Hole", type='BOOLEAN')
+                mod.object = pocket_cutters
+                mod.operation = 'DIFFERENCE'
+                mod.solver = 'MANIFOLD'  # ← fixed from 'FLOAT'
+
+                # Apply immediately
+                depsgraph = _get_depsgraph(context=context)
+                eval_obj = rail.evaluated_get(depsgraph)
+                new_mesh = bpy.data.meshes.new_from_object(eval_obj)
+                old_mesh = rail.data
+                rail.data = new_mesh
+                bpy.data.meshes.remove(old_mesh)
+                rail.modifiers.clear()
+
+    # --- Generate Side Rails ---
     side_rail_len = L - (2 * cl)
     side_rails = [
-        ("Left_Bottom_Rail",  (cx, L/2, cz)),
-        ("Left_Top_Rail",     (cx, L/2, H - cz)),
+        ("Left_Bottom_Rail", (cx, L/2, cz)),
+        ("Left_Top_Rail", (cx, L/2, H - cz)),
         ("Right_Bottom_Rail", (W - cx, L/2, cz)),
-        ("Right_Top_Rail",    (W - cx, L/2, H - cz)),
+        ("Right_Top_Rail", (W - cx, L/2, H - cz)),
     ]
-    
-    # Create cutters for forklift pockets (only for bottom rails)
-    pocket_cutters = create_forklift_pocket_cutters("Pocket_Cutters", W)
-    col.objects.link(pocket_cutters)
-    
+
     for name, loc in side_rails:
-        rail = create_box(name, pw, side_rail_len, rh, loc)
-        col.objects.link(rail)
-        rail.parent = root_obj
-        
-        # Apply boolean cut to bottom rails for forklift pockets
-        if "Bottom" in name:
-            mod = rail.modifiers.new(name="Forklift_Hole", type='BOOLEAN')
-            mod.object = pocket_cutters
-            mod.operation = 'DIFFERENCE'
-            mod.solver = 'FLOAT'
-            
-            # Apply modifier immediately for performance
-            depsgraph = _get_depsgraph(context=context)
-            eval_obj = rail.evaluated_get(depsgraph)
-            new_mesh = bpy.data.meshes.new_from_object(eval_obj)
-            
-            old_mesh = rail.data
-            rail.data = new_mesh
-            bpy.data.meshes.remove(old_mesh)
-            rail.modifiers.clear()
-            
-    # Remove the cutter object after applying
-    remove_object_and_orphan_data(pocket_cutters)
+        if side_rail_conditions.get(name, lambda: False)():
+            rail = create_box(name, pw, side_rail_len, rh, loc)
+            col.objects.link(rail)
+            rail.parent = root_obj
+
+            # Apply boolean cut if this is a bottom rail and cutters exist
+            if "Bottom" in name and pocket_cutters:
+                mod = rail.modifiers.new(name="Forklift_Hole", type='BOOLEAN')
+                mod.object = pocket_cutters
+                mod.operation = 'DIFFERENCE'
+                mod.solver = 'MANIFOLD'
+
+                depsgraph = _get_depsgraph(context=context)
+                eval_obj = rail.evaluated_get(depsgraph)
+                new_mesh = bpy.data.meshes.new_from_object(eval_obj)
+                old_mesh = rail.data
+                rail.data = new_mesh
+                bpy.data.meshes.remove(old_mesh)
+                rail.modifiers.clear()
+
+    # Clean up cutters if they were created
+    if pocket_cutters:
+        remove_object_and_orphan_data(pocket_cutters)
 
     # --- Generate Panels & Doors ---
     panel_w = W - (2 * cx) - pw
@@ -251,21 +323,25 @@ def rebuild_container(root_obj, context=None):
             col.objects.link(decal_specs)
             decal_specs.parent = right_pivot
 
+# Show Back Panel
     if props.show_back_panel:
         back = create_corrugated_panel("Back_Assembly", panel_w, panel_h, (W/2, L - cy, H/2), (math.radians(90), 0, math.radians(180)))
         col.objects.link(back)
         back.parent = root_obj
-        
+
+# Show Left Panel
     if props.show_left_panel:
         left = create_corrugated_panel("Left_Side_Assembly", panel_l, panel_h, (cx, L/2, H/2), (math.radians(90), 0, math.radians(-90)))
         col.objects.link(left)
         left.parent = root_obj
-        
+
+# Show Right Panel
     if props.show_right_panel:
         right = create_corrugated_panel("Right_Side_Assembly", panel_l, panel_h, (W - cx, L/2, H/2), (math.radians(90), 0, math.radians(90)))
         col.objects.link(right)
         right.parent = root_obj
-        
+
+# Show Front Panel
     if props.show_floor:
         # Group floor components under an Empty
         floor_assembly = bpy.data.objects.new("Floor_Assembly", None)
@@ -298,7 +374,8 @@ def rebuild_container(root_obj, context=None):
         pocket_tubes.location = (0, 0, -rh/2)
         col.objects.link(pocket_tubes)
         pocket_tubes.parent = floor_assembly
-        
+
+# Show Roof Panel
     if props.show_roof:
         # Group roof components under an Empty
         roof_assembly = bpy.data.objects.new("Roof_Assembly", None)
@@ -320,7 +397,7 @@ def rebuild_container(root_obj, context=None):
             panel_w,
             (0, 0, 0),
             (0, 0, math.radians(90)),
-            profile="LEGACY",
+            profile="OFFICIAL_SIDE",
         )
         col.objects.link(roof_panel)
         roof_panel.parent = roof_assembly
