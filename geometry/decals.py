@@ -1,6 +1,39 @@
 import bpy
 import random
 
+# ---------------------------------------------------------------------------
+# Shipping company brand registry
+# Each entry drives both the logo text colour and the logo material.
+# Colors are sRGB hex strings (converted to linear by the material helper).
+# ---------------------------------------------------------------------------
+SHIPPING_COMPANIES = [
+    {"name": "MAERSK",       "color": "#42A4D5"},  # Maersk blue
+    {"name": "MSC",          "color": "#1B2F6E"},  # MSC navy
+    {"name": "COSCO",        "color": "#CC1F1A"},  # COSCO red
+    {"name": "CMA CGM",      "color": "#E31837"},  # CMA red
+    {"name": "EVERGREEN",    "color": "#006341"},  # Evergreen green
+    {"name": "HAPAG-LLOYD",  "color": "#F07D00"},  # Hapag orange
+    {"name": "ONE",          "color": "#E4007F"},  # ONE magenta
+    {"name": "YANG MING",    "color": "#C8102E"},  # Yang Ming crimson
+    {"name": "ZIM",          "color": "#005DAA"},  # ZIM blue
+    {"name": "PIL",          "color": "#003087"},  # PIL dark blue
+]
+
+
+def get_company_for_seed(seed):
+    """Returns a shipping company dict deterministically from the container seed.
+
+    A separate RNG offset (+7919) is used so the company choice is independent
+    from the colour seed already stored on the container root object.
+    """
+    rng = random.Random(int(seed * 1_000_000) + 7919)
+    return rng.choice(SHIPPING_COMPANIES)
+
+
+# ---------------------------------------------------------------------------
+# Container ID decal  (unchanged from original)
+# ---------------------------------------------------------------------------
+
 def generate_container_id(seed=None):
     """Generates a random standard container ID based on the container's seed."""
     rng = random.Random(seed) if seed is not None else random
@@ -12,15 +45,46 @@ def generate_container_id(seed=None):
 
     return f"{owner_code} {serial} {check_digit}"
 
+
 def create_text_decal(name, text, size=0.15, align_x='LEFT', align_y='TOP'):
-    """Creates a 3D text object for decals."""
+    """Creates a 3D text object for small informational decals."""
     font_curve = bpy.data.curves.new(type="FONT", name=name)
     font_curve.body = text
-    font_curve.extrude = 0.002 # Very thin, just enough to be visible
+    font_curve.extrude = 0.002   # Very thin, just enough to be visible
     font_curve.size = size
     font_curve.align_x = align_x
     font_curve.align_y = align_y
-    
+
     obj = bpy.data.objects.new(name, font_curve)
     obj["is_container_part"] = True
+    return obj
+
+
+# ---------------------------------------------------------------------------
+# Company logo decal  (new)
+# ---------------------------------------------------------------------------
+
+def create_logo_text(name, company_name, size=0.42):
+    """Creates a large company-name logo as a 3-D font object.
+
+    The object is tagged with ``is_logo_decal = True`` so the generic material
+    assignment pass in rebuild.py skips it (the brand material is assigned
+    immediately on creation instead).
+
+    Axis convention for the caller:
+      - align_x = 'CENTER' so the pivot is the horizontal midpoint of the text.
+      - align_y = 'CENTER' so the pivot is the vertical midpoint.
+    This makes it easy to centre the logo on any panel without knowing the
+    bounding-box of the text string ahead of time.
+    """
+    font_curve = bpy.data.curves.new(type="FONT", name=name)
+    font_curve.body = company_name
+    font_curve.extrude = 0.003   # Slightly thicker than small decals
+    font_curve.size = size
+    font_curve.align_x = 'CENTER'
+    font_curve.align_y = 'CENTER'
+
+    obj = bpy.data.objects.new(name, font_curve)
+    obj["is_container_part"] = True
+    obj["is_logo_decal"] = True   # <-- prevents generic decal_mat overwrite
     return obj

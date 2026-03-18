@@ -38,8 +38,8 @@ def get_or_create_container_material():
     ramp.color_ramp.interpolation = 'CONSTANT'
     
     colors = [
-        (0.000, "#1B3A6FFF"), (0.300, "#8C1D18FF"), (0.600, "#2E5E3EFF"),
-        (0.700, "#C65A2EFF"), (0.900, "#6C6F73FF"), (1.000, "#943E3CFF")
+        (0.000, "#28578EFF"), (0.125, "#132943FF"), (0.250, "#2E66A6FF"), (0.375, "#933D2DFF"), 
+        (0.500, "#773226FF"), (0.625, "#61291FFF"), (0.850, "#184612FF"), (0.975, "#308F25FF")
     ]
     elements = ramp.color_ramp.elements
     if len(elements) < len(colors):
@@ -50,32 +50,11 @@ def get_or_create_container_material():
         elements[i].position = pos
         elements[i].color = hex_to_linear_rgba(hex_c)
         
-    attr = nodes.new('ShaderNodeAttribute')
-    attr.location = (-500, 0)
-    attr.attribute_name = "container_seed"
-    attr.attribute_type = 'OBJECT'
     
     obj_info = nodes.new('ShaderNodeObjectInfo')
     obj_info.location = (-500, -200)
-
-    # Prefer the per-container seed (stable across all parts). Fall back to Object Info Random for
-    # objects that don't provide "container_seed".
-    has_seed = nodes.new('ShaderNodeMath')
-    has_seed.location = (-250, -50)
-    has_seed.operation = 'GREATER_THAN'
-    has_seed.inputs[1].default_value = 0.0
-
-    mix_seed = nodes.new('ShaderNodeMix')
-    mix_seed.location = (-50, -50)
-    mix_seed.data_type = 'FLOAT'
-    mix_seed.blend_type = 'MIX'
     
-    links.new(attr.outputs['Fac'], has_seed.inputs[0])
-    links.new(has_seed.outputs['Value'], mix_seed.inputs['Factor'])
-    links.new(obj_info.outputs['Random'], mix_seed.inputs['A'])
-    links.new(attr.outputs['Fac'], mix_seed.inputs['B'])
-
-    links.new(mix_seed.outputs['Result'], ramp.inputs['Fac'])
+    links.new(obj_info.outputs['Random'], ramp.inputs['Fac'])
     links.new(ramp.outputs['Color'], bsdf.inputs['Base Color'])
     links.new(bsdf.outputs['BSDF'], out_node.inputs['Surface'])
     
@@ -106,6 +85,33 @@ def get_or_create_decal_material():
         bsdf.inputs['Base Color'].default_value = (0.9, 0.9, 0.9, 1.0)
         bsdf.inputs['Roughness'].default_value = 0.4
         bsdf.inputs['Metallic'].default_value = 0.0
+    return mat
+
+def get_or_create_hardware_material():
+    """Grey metallic material for locking bars, guides, cams, handles, and all
+    door hardware.  Objects must be tagged with obj["is_hardware"] = True by the
+    geometry builders so the rebuild loop assigns this material automatically."""
+    mat_name = "ISO_Container_Hardware"
+    if mat_name in bpy.data.materials:
+        return bpy.data.materials[mat_name]
+
+    mat = bpy.data.materials.new(name=mat_name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
+
+    out_node = nodes.new('ShaderNodeOutputMaterial')
+    out_node.location = (300, 0)
+
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
+    # Mid-grey, slightly rough steel
+    bsdf.inputs['Base Color'].default_value = (0.35, 0.35, 0.35, 1.0)
+    bsdf.inputs['Roughness'].default_value  = 0.40
+    bsdf.inputs['Metallic'].default_value   = 0.85
+
+    links.new(bsdf.outputs['BSDF'], out_node.inputs['Surface'])
     return mat
 
 def get_or_create_proxy_image(name, color, is_data=False):
@@ -147,9 +153,10 @@ def get_or_create_proxy_material():
     color_ramp.color_ramp.interpolation = 'CONSTANT'
     
     colors = [
-        (0.000, "#1B3A6FFF"), (0.300, "#8C1D18FF"), (0.600, "#2E5E3EFF"),
-        (0.700, "#C65A2EFF"), (0.900, "#6C6F73FF"), (1.000, "#943E3CFF")
+        (0.000, "#28578EFF"), (0.125, "#132943FF"), (0.250, "#2E66A6FF"), (0.375, "#933D2DFF"), 
+        (0.500, "#773226FF"), (0.625, "#61291FFF"), (0.850, "#184612FF"), (0.975, "#308F25FF")
     ]
+
     elements = color_ramp.color_ramp.elements
     if len(elements) < len(colors):
         for _ in range(len(colors) - len(elements)):
@@ -195,7 +202,6 @@ def get_or_create_proxy_material():
     normal_map = nodes.new('ShaderNodeNormalMap')
     normal_map.location = (-400, -700)
     
-    # Use standard UVs for the 9-slice mapping
     links.new(tex_coord.outputs['UV'], node_diffuse.inputs['Vector'])
     links.new(tex_coord.outputs['UV'], node_rough.inputs['Vector'])
     links.new(tex_coord.outputs['UV'], node_normal.inputs['Vector'])
