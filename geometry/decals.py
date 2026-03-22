@@ -1,4 +1,5 @@
 import bpy
+import bmesh
 import random
 
 # ---------------------------------------------------------------------------
@@ -31,7 +32,7 @@ def get_company_for_seed(seed):
 
 
 # ---------------------------------------------------------------------------
-# Container ID decal  (unchanged from original)
+# Container ID decal
 # ---------------------------------------------------------------------------
 
 def generate_container_id(seed=None):
@@ -47,10 +48,17 @@ def generate_container_id(seed=None):
 
 
 def create_text_decal(name, text, size=0.15, align_x='LEFT', align_y='TOP'):
-    """Creates a 3D text object for small informational decals."""
+    """Creates a 3D text object for small informational decals.
+
+    The font curve lies in the local XY plane.  Callers must apply
+    rotation_euler = (pi/2, 0, 0) to orient text in the world XZ plane
+    (readable when looking at the door from -Y).
+    Place the object at Y = -0.001 so it sits just in front of the door face
+    and avoids Z-fighting with the background surface.
+    """
     font_curve = bpy.data.curves.new(type="FONT", name=name)
     font_curve.body = text
-    font_curve.extrude = 0.002   # Very thin, just enough to be visible
+    font_curve.extrude = 0.002   # Very thin — just enough to be visible
     font_curve.size = size
     font_curve.align_x = align_x
     font_curve.align_y = align_y
@@ -61,21 +69,15 @@ def create_text_decal(name, text, size=0.15, align_x='LEFT', align_y='TOP'):
 
 
 # ---------------------------------------------------------------------------
-# Company logo decal  (new)
+# Company logo decal  (3-D extruded text, centred on its local origin)
 # ---------------------------------------------------------------------------
 
 def create_logo_text(name, company_name, size=0.42):
     """Creates a large company-name logo as a 3-D font object.
 
-    The object is tagged with ``is_logo_decal = True`` so the generic material
-    assignment pass in rebuild.py skips it (the brand material is assigned
-    immediately on creation instead).
-
-    Axis convention for the caller:
-      - align_x = 'CENTER' so the pivot is the horizontal midpoint of the text.
-      - align_y = 'CENTER' so the pivot is the vertical midpoint.
-    This makes it easy to centre the logo on any panel without knowing the
-    bounding-box of the text string ahead of time.
+    Tagged with ``is_logo_decal = True`` so the generic material assignment
+    pass in rebuild.py skips it (brand / white material is assigned directly).
+    align_x = 'CENTER' / align_y = 'CENTER' so the pivot is the text midpoint.
     """
     font_curve = bpy.data.curves.new(type="FONT", name=name)
     font_curve.body = company_name
@@ -86,5 +88,42 @@ def create_logo_text(name, company_name, size=0.42):
 
     obj = bpy.data.objects.new(name, font_curve)
     obj["is_container_part"] = True
-    obj["is_logo_decal"] = True   # <-- prevents generic decal_mat overwrite
+    obj["is_logo_decal"] = True
+    return obj
+
+
+# ---------------------------------------------------------------------------
+# Logo backing plane
+# ---------------------------------------------------------------------------
+
+def create_logo_plane(name, width, height):
+    """Flat quad in the XZ plane used as a coloured backing for a company logo.
+
+    The face lies at Y = 0 and is visible from the -Y direction (viewer).
+    Callers should offset by location.y = -0.001 to sit just in front of the
+    door background and avoid Z-fighting.
+
+    Tagged ``is_logo_decal = True`` so the generic material loop skips it;
+    the brand material is assigned by the caller immediately after creation.
+    """
+    mesh = bpy.data.meshes.new(name)
+    obj  = bpy.data.objects.new(name, mesh)
+
+    hw = width  * 0.5
+    hh = height * 0.5
+
+    bm = bmesh.new()
+    verts = [
+        bm.verts.new((-hw, 0.0, -hh)),
+        bm.verts.new(( hw, 0.0, -hh)),
+        bm.verts.new(( hw, 0.0,  hh)),
+        bm.verts.new((-hw, 0.0,  hh)),
+    ]
+    bm.faces.new(verts)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+
+    obj["is_container_part"] = True
+    obj["is_logo_decal"]     = True
     return obj

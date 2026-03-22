@@ -1,4 +1,5 @@
 import bpy
+import random
 from .systems.rebuild import rebuild_container
 from .utils import find_container_root
 
@@ -9,28 +10,24 @@ class MESH_OT_add_shipping_container(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # Ensure a predictable context for object creation/selection.
         if context.mode != 'OBJECT':
             try:
                 bpy.ops.object.mode_set(mode='OBJECT')
             except RuntimeError:
                 pass
 
-        # Create the root EMPTY object
         root_empty = bpy.data.objects.new("ISO_Container_Root", None)
         root_empty.empty_display_type = 'CUBE'
-        root_empty.empty_display_size = 0.2
+        root_empty.empty_display_size = 0.1
 
         (context.collection or context.scene.collection).objects.link(root_empty)
         root_empty.location = context.scene.cursor.location
         root_empty.shipping_container.is_container = True
 
-        # Select the new object and make it active
         bpy.ops.object.select_all(action='DESELECT')
         root_empty.select_set(True)
         context.view_layer.objects.active = root_empty
 
-        # Trigger initial geometry generation
         rebuild_container(root_empty, context=context)
 
         self.report({'INFO'}, "Shipping Container: Generated successfully.")
@@ -59,43 +56,52 @@ class OBJECT_OT_bake_container_to_single_mesh(bpy.types.Operator):
             self.report({'WARNING'}, "No Shipping Container root found for the active object.")
             return {'CANCELLED'}
 
-        def get_visible_mesh_descendants(obj, mesh_list):
+        def get_visible_descendants(obj, result):
+            """Collect all visible MESH and FONT children (recursive).
+
+            FONT objects (text decals) are included so they get converted to
+            mesh geometry and merged into the final bake, ensuring decals survive
+            the bake operation.
+            """
             for child in obj.children:
-                if child.type == 'MESH' and child.visible_get():
-                    mesh_list.append(child)
-                get_visible_mesh_descendants(child, mesh_list)
+                if child.type in ('MESH', 'FONT') and child.visible_get():
+                    result.append(child)
+                get_visible_descendants(child, result)
 
-        meshes_to_join = []
-        get_visible_mesh_descendants(root_obj, meshes_to_join)
+        objects_to_bake = []
+        get_visible_descendants(root_obj, objects_to_bake)
 
-        if not meshes_to_join:
+        if not objects_to_bake:
             self.report({'WARNING'}, "No visible meshes found inside the container!")
             return {'CANCELLED'}
 
         bpy.ops.object.select_all(action='DESELECT')
-
-        for mesh in meshes_to_join:
-            mesh.select_set(True)
+        for obj in objects_to_bake:
+            obj.select_set(True)
 
         bpy.ops.object.duplicate(linked=False)
+        baked_objects = list(context.selected_objects)
 
-        baked_meshes = context.selected_objects
-
-        if not baked_meshes:
+        if not baked_objects:
             self.report({'WARNING'}, "Duplication failed!")
             return {'CANCELLED'}
 
-        context.view_layer.objects.active = baked_meshes[0]
+        context.view_layer.objects.active = baked_objects[0]
 
+        # Convert converts FONT → MESH and applies modifiers on all selected objects.
         bpy.ops.object.convert(target='MESH')
 
-        if len(baked_meshes) > 1:
+        if len(baked_objects) > 1:
             bpy.ops.object.join()
 
         final_mesh = context.active_object
-        size = root_obj.shipping_container.container_size
+        size   = root_obj.shipping_container.container_size
         detail = root_obj.shipping_container.detail_level
         final_mesh.name = f"Baked_{size}_{detail}"
+
+        # Assign a new unique seed so the baked object gets its own colour
+        # variation in any seed-driven material (Principled BSDF via Object Info).
+        final_mesh["container_seed"] = random.random() * 0.999 + 0.001
 
         old_matrix = final_mesh.matrix_world.copy()
         final_mesh.parent = None
@@ -136,7 +142,6 @@ class OBJECT_OT_create_container_stack(bpy.types.Operator):
             self.report({'WARNING'}, "No Shipping Container root found.")
             return {'CANCELLED'}
 
-        # Lazy import keeps the module graph clean
         from .systems.stack import create_container_stack
 
         stack_col, message = create_container_stack(root_obj, context)

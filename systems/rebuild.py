@@ -11,6 +11,7 @@ from ..geometry.doors import (
     create_door_hinges,
     create_locking_hardware,
     get_hinge_positions,
+    get_corrugation_gap_centers,
     HINGE_H,
 )
 from ..geometry.castings import create_corner_casting_instance
@@ -21,7 +22,13 @@ from ..geometry.floor import (
     create_forklift_pocket_cutters,
     create_forklift_pocket_tubes,
 )
-from ..geometry.decals import generate_container_id, create_text_decal
+from ..geometry.decals import (
+    generate_container_id,
+    create_text_decal,
+    create_logo_text,
+    create_logo_plane,
+    get_company_for_seed,
+)
 from ..geometry.proxy import create_proxy_box
 from .materials import (
     get_or_create_container_material,
@@ -29,6 +36,7 @@ from .materials import (
     get_or_create_decal_material,
     get_or_create_hardware_material,
     get_or_create_proxy_material,
+    get_or_create_brand_material,
 )
 
 
@@ -356,9 +364,17 @@ def rebuild_container(root_obj, context=None):
         door_w      = panel_w / 2
         door_h      = panel_h
         floor_z_off = cz + rh / 2
+        n_corr      = props.door_corrugations
 
-        # Number of corrugation ribs from the property
-        n_corr = props.door_corrugations
+        # Z-centres of flat door background sections — for hardware and decal snapping.
+        # FRAME_T = 0.150 m (top/bottom rail height from doors.py).
+        _door_frame_t = 0.150
+        gap_zs = get_corrugation_gap_centers(
+            _door_frame_t, door_h - 2 * _door_frame_t, n_corr)
+
+        # Shared company info (same seed → same company on both doors)
+        company   = get_company_for_seed(container_seed)
+        brand_mat = get_or_create_brand_material(company["name"], company["color"])
 
         if props.show_left_door:
             left_pivot = bpy.data.objects.new("Left_Door_Pivot", None)
@@ -370,7 +386,7 @@ def rebuild_container(root_obj, context=None):
             left_pivot.parent = root_obj
             left_pivot["is_container_part"] = True
 
-            # Door panel — passes corrugation count
+            # Door panel
             lp = create_door_panel("Left_Panel", door_w, door_h, True,
                                    num_corrugations=n_corr)
             col.objects.link(lp)
@@ -381,11 +397,36 @@ def rebuild_container(root_obj, context=None):
             col.objects.link(lh)
             lh.parent = left_pivot
 
-            # Locking hardware
+            # Locking hardware — brackets snapped to gap centres
             hw = create_locking_hardware(
-                "Left_Hardware", door_w, door_h, True, floor_z_off)
+                "Left_Hardware", door_w, door_h, True, floor_z_off,
+                num_corrugations=n_corr)
             col.objects.link(hw)
             hw.parent = left_pivot
+
+            # ── Logo decal on left door ───────────────────────────────────────
+            # Place in the first gap centre above the door midpoint, centred in X.
+            sorted_gaps = sorted(gap_zs)
+            above_mid   = [z for z in sorted_gaps if z > door_h * 0.5]
+            logo_z      = above_mid[0] if above_mid else (sorted_gaps[-1] if sorted_gaps else door_h * 0.75)
+            cx_left     = door_w * 0.5   # horizontal centre of left door panel
+            logo_pw     = max(0.20, door_w - 2 * 0.150 - 0.04)
+            logo_ph     = 0.22
+
+            logo_plane = create_logo_plane("Left_Logo_Plane", logo_pw, logo_ph)
+            logo_plane.location = (cx_left, -0.001, logo_z)
+            col.objects.link(logo_plane)
+            logo_plane.parent = left_pivot
+            # Plane uses the container metal shader so it blends with the door.
+            logo_plane.data.materials.append(get_or_create_container_material())
+
+            logo_text = create_logo_text("Left_Logo_Text", company["name"], size=0.14)
+            logo_text.location       = (cx_left, -0.003, logo_z)
+            logo_text.rotation_euler = (math.radians(90), 0, 0)
+            col.objects.link(logo_text)
+            logo_text.parent = left_pivot
+            # Text is coloured with the company brand colour.
+            logo_text.data.materials.append(brand_mat)
 
         if props.show_right_door:
             right_pivot = bpy.data.objects.new("Right_Door_Pivot", None)
@@ -408,20 +449,19 @@ def rebuild_container(root_obj, context=None):
             col.objects.link(rh_obj)
             rh_obj.parent = right_pivot
 
-            # Locking hardware
+            # Locking hardware — brackets snapped to gap centres
             hw = create_locking_hardware(
-                "Right_Hardware", door_w, door_h, False, floor_z_off)
+                "Right_Hardware", door_w, door_h, False, floor_z_off,
+                num_corrugations=n_corr)
             col.objects.link(hw)
             hw.parent = right_pivot
 
-            # ── Decals on the right door ──────────────────────────────────────
-            decal_id = create_text_decal(
-                "Decal_ID", container_id, size=0.12, align_x='RIGHT')
-            decal_id.location       = (-0.1, -0.05, door_h - 0.3)
-            decal_id.rotation_euler = (math.radians(90), 0, 0)
-            col.objects.link(decal_id)
-            decal_id.parent = right_pivot
+            # ── Decals on the right door — flush (Y = −0.001), centred in X ────
+            # sorted_gaps is shared from the left-door block above.
+            cx_right = -door_w * 0.5   # horizontal centre of right door panel
 
+            # Decal_Specs: first gap above midpoint, centred
+            specs_z    = above_mid[0] if above_mid else (sorted_gaps[-1] if sorted_gaps else door_h * 0.55)
             specs_text = (
                 "MAX GROSS  30,480 KG\n"
                 "TARE       2,200 KG\n"
@@ -429,11 +469,23 @@ def rebuild_container(root_obj, context=None):
                 "CU. CAP.   33.2 CU.M"
             )
             decal_specs = create_text_decal(
-                "Decal_Specs", specs_text, size=0.06, align_x='LEFT')
-            decal_specs.location       = (-door_w + 0.1, -0.05, door_h / 2)
+                "Decal_Specs", specs_text, size=0.06, align_x='CENTER')
+            decal_specs.location       = (cx_right, -0.001, specs_z)
             decal_specs.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_specs)
             decal_specs.parent = right_pivot
+
+            # Decal_ID: next gap up from Decal_Specs, centred
+            specs_idx = sorted_gaps.index(specs_z) if specs_z in sorted_gaps else -1
+            id_z = (sorted_gaps[specs_idx + 1]
+                    if specs_idx >= 0 and specs_idx + 1 < len(sorted_gaps)
+                    else specs_z + 0.200)
+            decal_id = create_text_decal(
+                "Decal_ID", container_id, size=0.12, align_x='CENTER')
+            decal_id.location       = (cx_right, -0.001, id_z)
+            decal_id.rotation_euler = (math.radians(90), 0, 0)
+            col.objects.link(decal_id)
+            decal_id.parent = right_pivot
 
     # ── BACK PANEL ────────────────────────────────────────────────────────────
     if props.show_back_panel:
@@ -526,12 +578,34 @@ def rebuild_container(root_obj, context=None):
         if obj.type == 'MESH':
             obj["container_seed"] = container_seed
 
+            # Shader control values — read by ShaderNodeAttribute (OBJECT) in
+            # the v5 ISO_Container_Metal shader.  Stamped here so every mesh
+            # child reflects the root's current shader settings at build time.
+            obj["shader_rust_strength"]      = props.shader_rust_strength
+            obj["shader_stain_intensity"]    = props.shader_stain_intensity
+            obj["shader_dust_intensity"]     = props.shader_dust_intensity
+            obj["shader_scratch_intensity"]  = props.shader_scratch_intensity
+            obj["shader_color_override_amt"] = props.shader_color_override_amount
+            obj["shader_color_override"]     = list(props.shader_color_override)
+
             if obj.get("is_hardware"):
                 mat = hardware_mat
+            elif obj.get("is_logo_decal"):
+                # Logo backing plane — use the same metal shader as the rest of
+                # the container so it blends in colour and weathering.
+                # Shader attribute props must be stamped so the v5 shader works.
+                obj["container_seed"]            = container_seed
+                obj["shader_rust_strength"]      = props.shader_rust_strength
+                obj["shader_stain_intensity"]    = props.shader_stain_intensity
+                obj["shader_dust_intensity"]     = props.shader_dust_intensity
+                obj["shader_scratch_intensity"]  = props.shader_scratch_intensity
+                obj["shader_color_override_amt"] = props.shader_color_override_amount
+                obj["shader_color_override"]     = list(props.shader_color_override)
+                mat = get_or_create_container_material()
             elif "Wood" in obj.name:
                 mat = wood_mat
             else:
-                mat = metal_mat
+                mat = get_or_create_container_material()
 
             if obj.data.materials:
                 obj.data.materials[0] = mat
@@ -539,7 +613,10 @@ def rebuild_container(root_obj, context=None):
                 obj.data.materials.append(mat)
 
         elif obj.type == 'FONT':
-            if obj.data.materials:
+            if obj.get("is_logo_decal"):
+                # Logo text already has brand_mat assigned at creation — keep it.
+                pass
+            elif obj.data.materials:
                 obj.data.materials[0] = decal_mat
             else:
                 obj.data.materials.append(decal_mat)

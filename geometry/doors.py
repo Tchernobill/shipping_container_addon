@@ -106,94 +106,121 @@ def _hinge_z_positions(door_height):
 
 # ── Corrugation profile builder ────────────────────────────────────────────────
 
-def _corr_profile(x0, panel_w, n_corr):
-    """Build the corrugation cross-section profile as a list of (x, y) points.
+def _corr_profile(z0, panel_h, n_corr):
+    """Build the corrugation cross-section profile as a list of (z, y) points.
 
     Coordinate space:
-        x : door-local X, spanning x0 → x0 + panel_w
+        z : door-local Z (height), spanning z0 → z0 + panel_h
         y : 0          = viewer face / corrugation peaks  (flush with frame)
             CORR_DEPTH = recessed background between corrugations
 
-    One rib cycle (left → right):
+    One rib cycle (bottom → top):
         ½ gap flat  ──  slope up 32 mm (Y: CORR_DEPTH → 0)  ──  inner flat 70 mm
                     ──  slope dn 32 mm (Y: 0 → CORR_DEPTH)   ──  ½ gap flat
 
     Between consecutive ribs the two half-gaps join to form a full 'space' gap.
     Profile starts and ends at y = CORR_DEPTH (background level).
     """
-    if n_corr <= 0 or panel_w < 0.020:
-        # Flat recessed background — no corrugation geometry
-        return [(x0, CORR_DEPTH), (x0 + panel_w, CORR_DEPTH)]
+    if n_corr <= 0 or panel_h < 0.020:
+        # Flat flush background — no corrugation geometry
+        return [(z0, 0.0), (z0 + panel_h, 0.0)]
 
     # Clamp: guarantee at least MIN_GAP between adjacent ribs
     MIN_GAP = 0.015
-    max_n   = max(1, int((panel_w - MIN_GAP) / (CORR_OUTSIDE + MIN_GAP)))
+    max_n   = max(1, int((panel_h - MIN_GAP) / (CORR_OUTSIDE + MIN_GAP)))
     n       = min(n_corr, max_n)
 
-    if n * CORR_OUTSIDE >= panel_w:
-        return [(x0, CORR_DEPTH), (x0 + panel_w, CORR_DEPTH)]
+    if n * CORR_OUTSIDE >= panel_h:
+        return [(z0, 0.0), (z0 + panel_h, 0.0)]
 
-    space = (panel_w - n * CORR_OUTSIDE) / n   # inter-rib gap
+    space = (panel_h - n * CORR_OUTSIDE) / n   # inter-rib gap
 
-    pts = [(x0, CORR_DEPTH)]
-    x   = x0
+    pts = [(z0, 0.0)]
+    z   = z0
 
     # Leading half-gap before first rib
-    x += space * 0.5
-    pts.append((x, CORR_DEPTH))
+    z += space * 0.5
+    pts.append((z, 0.0))
 
     for i in range(n):
-        # Slope toward viewer (Y decreases to 0 = peak)
-        x += CORR_SLOPE;  pts.append((x, 0.0))
-        # Inner flat at rib peak
-        x += CORR_INSIDE; pts.append((x, 0.0))
-        # Slope back to background level
-        x += CORR_SLOPE;  pts.append((x, CORR_DEPTH))
+        # Slope inward (Y increases away from viewer)
+        z += CORR_SLOPE;  pts.append((z, CORR_DEPTH))
+        # Inner flat at rib bottom (deepest point)
+        z += CORR_INSIDE; pts.append((z, CORR_DEPTH))
+        # Slope back out to flush face
+        z += CORR_SLOPE;  pts.append((z, 0.0))
         # Full gap between ribs; trailing half-gap after last rib
         gap = space if (i < n - 1) else space * 0.5
-        x  += gap;        pts.append((x, CORR_DEPTH))
+        z  += gap;        pts.append((z, 0.0))
 
     return pts
 
 
-def _add_corrugated_strip(bm, x0, panel_w, z_bot, z_top, n_corr):
-    """Sweep the corrugation cross-section along Z to create the panel volume.
+def get_corrugation_gap_centers(z0, panel_h, n_corr):
+    """Return the Z-centre of every flat background section between corrugation ribs.
 
-    Cross-section closed loop (XY plane):
-      • Forward path : corrugation profile  x0 → x0+panel_w  (varying y)
+    These are the positions where hardware (guide brackets, handle) and decals
+    can be mounted flush on the door face without overlapping a rib crest.
+
+    Returns n_corr + 1 centres for n_corr > 0, or five evenly-spaced fallback
+    positions when n_corr == 0 (flat panel — no ribs).
+    """
+    if n_corr <= 0:
+        return [z0 + panel_h * (i + 1) / 6 for i in range(5)]
+
+    pts = _corr_profile(z0, panel_h, n_corr)
+    centers = []
+    for i in range(len(pts) - 1):
+        z_a, y_a = pts[i]
+        z_b, y_b = pts[i + 1]
+        # Flat segment: both endpoints on the outer face (y ≈ 0) with real length
+        if abs(y_a) < 1e-6 and abs(y_b) < 1e-6 and (z_b - z_a) > 0.010:
+            centers.append((z_a + z_b) * 0.5)
+    return centers
+
+
+def _add_corrugated_strip(bm, x0, x1, z0, panel_h, n_corr):
+    """Sweep the corrugation cross-section along X to create the panel volume.
+
+    Ribs run horizontally (left → right across the door width).
+
+    Cross-section closed loop (ZY plane):
+      • Forward path : corrugation profile  z0 → z0+panel_h  (varying y)
       • Closing path : straight line at y = LEAF_T            (door back face)
 
-    Side-wall quads connect every adjacent pair around the closed loop.
-    Top and bottom faces are n-gon caps; Blender's ear-clipping handles the
+    The profile is swept from x = x0 (hinge side) to x = x1 (closing edge).
+    Left and right faces are n-gon caps; Blender's ear-clipping handles the
     non-convex corrugation shape correctly at tessellation time.
     """
-    fwd  = _corr_profile(x0, panel_w, n_corr)
+    fwd  = _corr_profile(z0, panel_h, n_corr)
 
     # Close the cross-section at the back of the door leaf
     loop = fwd + [
-        (fwd[-1][0], LEAF_T),   # back-right corner
-        (fwd[0][0],  LEAF_T),   # back-left  corner
+        (fwd[-1][0], LEAF_T),   # back-top    corner  (z=z0+panel_h, y=LEAF_T)
+        (fwd[0][0],  LEAF_T),   # back-bottom corner  (z=z0,         y=LEAF_T)
     ]
     N = len(loop)
 
-    bv = [bm.verts.new((p[0], p[1], z_bot)) for p in loop]
-    tv = [bm.verts.new((p[0], p[1], z_top)) for p in loop]
+    # Each profile point (z, y) becomes a vert at x=x0 and a vert at x=x1.
+    # Vertex layout: (x, y, z)
+    lv = [bm.verts.new((x0, p[1], p[0])) for p in loop]  # left face  (x = x0)
+    rv = [bm.verts.new((x1, p[1], p[0])) for p in loop]  # right face (x = x1)
 
-    # Side-wall quads (wrapping around the closed loop)
+    # Side-wall quads — one per adjacent pair around the closed loop
     for i in range(N):
         j = (i + 1) % N
         try:
-            bm.faces.new([bv[i], bv[j], tv[j], tv[i]])
+            bm.faces.new([lv[i], rv[i], rv[j], lv[j]])
         except ValueError:
             pass   # guard against degenerate duplicate edges
 
-    # End caps — n-gons; non-convex n-gons are valid in Blender BMesh
+    # Left and right end caps — n-gons in the ZY plane
     try:
-        bm.faces.new(list(reversed(bv)))   # bottom cap; winding → normal −Z
+        bm.faces.new(list(reversed(lv)))   # left  cap; winding → normal −X
     except ValueError:
         pass
     try:
-        bm.faces.new(tv)                   # top    cap; winding → normal +Z
+        bm.faces.new(rv)                   # right cap; winding → normal +X
     except ValueError:
         pass
 
@@ -255,9 +282,9 @@ def create_door_panel(name, width, height, is_left, num_corrugations=4):
     _b(bm, FRAME_S, dt, panel_h,
        cx=width - FRAME_S * 0.5, cy=dt * 0.5, cz=pz0 + panel_h * 0.5)
 
-    # ── Corrugated center panel ────────────────────────────────────────────────
+    # ── Corrugated center panel (ribs run horizontally) ───────────────────────
     if panel_w > 0.020 and panel_h > 0.020:
-        _add_corrugated_strip(bm, px0, panel_w, pz0, pz1, num_corrugations)
+        _add_corrugated_strip(bm, px0, px1, pz0, panel_h, num_corrugations)
 
     # ── Mirror for right door ──────────────────────────────────────────────────
     if not is_left:
@@ -316,28 +343,26 @@ def create_door_hinges(name, width, height, is_left):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-def create_locking_hardware(name, width, height, is_left, floor_z_offset=0.108):
+def create_locking_hardware(name, width, height, is_left, floor_z_offset=0.108, num_corrugations=4):
     """All locking-mechanism geometry in one mesh tagged is_hardware = True.
 
-    Includes:
-      • 2 vertical locking bars (rods), from closing edge toward hinge
-      • Evenly-spaced guide brackets along each bar
-      • Cam disc + cam holder at top and bottom of each bar
-      • Handle assembly: mounting plate, grip rod, two arms, latch body
+    Guide brackets are now cylinder clamps (disc + mount arm) placed at the
+    Z-centres of the flat background sections between corrugation ribs, so
+    they never visually overlap a corrugation crest.
+
+    The door handle is snapped to the gap centre nearest to HANDLE_HEIGHT above
+    the container floor.
 
     Bar X positions in left-door canonical space:
-        bar_x1 = width − BAR1_EDGE          (170 mm from the free/closing edge)
+        bar_x1 = width − BAR1_EDGE          (170 mm from the closing edge)
         bar_x2 = bar_x1 − BAR2_OFFSET       (420 mm from bar_x1 toward hinge)
-
-    floor_z_offset  world-Z of the door pivot (= cz + rh/2 from rebuild.py).
     """
     obj, mesh = _make_obj(name, is_hardware=True)
     bm = bmesh.new()
 
     bar_r   = 0.016
     bar_ext = 0.040
-    y_bar   = -0.022
-    gw, gh, gd    = 0.050, 0.040, 0.030
+    y_bar   = -0.022   # bars sit 22 mm proud of the outer door face
     cam_r, cam_t  = 0.032, 0.018
     chw, chh, chd = 0.080, 0.058, 0.036
 
@@ -345,32 +370,48 @@ def create_locking_hardware(name, width, height, is_left, floor_z_offset=0.108):
     bar_x2 = max(0.010, bar_x1 - BAR2_OFFSET)
     bar_xs = [bx for bx in (bar_x1, bar_x2) if 0.010 < bx < width - 0.010]
 
+    # Z-centres of flat door background sections — used for bracket / handle snapping
+    gap_zs = get_corrugation_gap_centers(FRAME_T, height - 2 * FRAME_T, num_corrugations)
+
     for bx in bar_xs:
-        # Locking rod
+        # ── Locking rod ───────────────────────────────────────────────────────
         _cyl(bm, bar_r, height + 2 * bar_ext,
              cx=bx, cy=y_bar, cz=height * 0.5, axis='Z', segs=10)
-        # Guide brackets (evenly spaced)
-        n_guides = max(3, int(height / 0.520) + 1)
-        for i in range(n_guides):
-            gz = (i + 0.5) * height / n_guides
-            _b(bm, gw, gd, gh, cx=bx, cy=y_bar - gd * 0.5, cz=gz)
-        # Cam disc + holder bracket at top and bottom
+
+        # ── Guide brackets — cylinder collars, one per gap centre ───────────
+        # A short Z-axis cylinder forms a clamp collar encircling the bar,
+        # with a small mounting tab connecting it to the door face.
+        for gz in gap_zs:
+            # Collar: short cylinder along Z encircling the bar
+            _cyl(bm, 0.028, 0.060,
+                 cx=bx, cy=y_bar, cz=gz, axis='Z', segs=12)
+            # Mounting tab: small block from door face to collar back
+            _b(bm, 0.010, 0.014, 0.020,
+               cx=bx, cy=-0.007, cz=gz)
+
+        # ── Cam disc + cam holder at top and bottom of each bar ───────────────
         for cz_cam in (0.030, height - 0.030):
             _cyl(bm, cam_r, cam_t,
                  cx=bx, cy=y_bar, cz=cz_cam, axis='Y', segs=10)
             _b(bm, chw, chd, chh, cx=bx, cy=y_bar - chd * 0.5, cz=cz_cam)
 
-    # Handle assembly on bar_x1
-    if bar_xs:
+    # ── Handle assembly — snapped to nearest gap centre ───────────────────────
+    if bar_xs and gap_zs:
         bx = bar_xs[0]
-        hz = max(0.050, HANDLE_HEIGHT - floor_z_offset)
+        target_hz = max(0.050, HANDLE_HEIGHT - floor_z_offset)
+        hz = min(gap_zs, key=lambda z: abs(z - target_hz))
+        hz = max(FRAME_T + 0.050, min(hz, height - FRAME_T - 0.050))
 
-        _b(bm, 0.120, 0.012, 0.260,    cx=bx, cy=y_bar - 0.006,  cz=hz)
+        # Mounting plate
+        _b(bm, 0.120, 0.012, 0.260, cx=bx, cy=y_bar - 0.006, cz=hz)
+        # Grip rod (horizontal cylinder, the user grabs)
         _cyl(bm, 0.014, 0.115,
-             cx=bx, cy=y_bar - 0.065,  cz=hz, axis='Y', segs=8)
+             cx=bx, cy=y_bar - 0.065, cz=hz, axis='Y', segs=8)
+        # Two short arms connecting plate to grip rod
         for dz in (-0.080, 0.080):
             _b(bm, 0.020, 0.060, 0.018, cx=bx, cy=y_bar - 0.034, cz=hz + dz)
-        _b(bm, 0.062, 0.032, 0.065,    cx=bx, cy=y_bar - 0.016,  cz=hz - 0.100)
+        # Latch body
+        _b(bm, 0.062, 0.032, 0.065, cx=bx, cy=y_bar - 0.016, cz=hz - 0.100)
 
     if not is_left:
         _mirror(bm)
