@@ -20,6 +20,7 @@ def draw_container_controls(layout, obj):
     layout.prop(props, "container_size")
     layout.prop(props, "detail_level")
     layout.prop(props, "door_open_angle")
+    layout.prop(props, "door_corrugations")
 
     # ── Bake single container ──────────────────────────────────────────────────
     layout.separator()

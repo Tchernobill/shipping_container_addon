@@ -50,10 +50,10 @@ def _get_depsgraph(context=None):
 
 
 def update_door_pivots(root_obj):
-    """Update door pivot rotations in-place for fast animation updates.
+    """Update door pivot rotations in-place (fast path for door animation).
 
-    Returns True if the update succeeded or wasn't needed, False if a rebuild is
-    recommended.
+    Returns True if the update succeeded or wasn't needed, False if a full
+    rebuild is required.
     """
     if not root_obj or not hasattr(root_obj, "shipping_container"):
         return False
@@ -88,18 +88,18 @@ def update_door_pivots(root_obj):
 def _apply_hinge_recesses(post_obj, col, hinge_z_positions_world,
                           pivot_x_world, post_cy_world, x_sign,
                           context=None):
-    """Boolean-cut rectangular slots into a front post to accept the hinge leaves.
+    """Boolean-cut rectangular slots into a front post to accept hinge leaves.
 
-    post_obj               – the post mesh object (already linked to collection)
-    hinge_z_positions_world – list of world-Z values for the *bottom* of each hinge
-    pivot_x_world          – world X of the hinge pivot axis (= door pivot X)
-    post_cy_world          – world Y centre of the post
-    x_sign                 – +1 if the recess opens toward +X (left post),
-                             −1 if it opens toward −X (right post)
+    post_obj                  – the post mesh object (already linked)
+    hinge_z_positions_world   – list of world-Z values for the *bottom* of each hinge
+    pivot_x_world             – world X of the hinge pivot axis
+    post_cy_world             – world Y centre of the front posts
+    x_sign                    – +1 (left post, recess opens toward +X)
+                                −1 (right post, recess opens toward −X)
     """
-    slot_depth  = 0.050          # 50 mm into the post face
-    slot_y_ext  = 0.070          # slot extends this far in Y (wider than post for clean cut)
-    slot_z      = HINGE_H + 0.004  # 4 mm clearance above/below hinge plate
+    slot_depth = 0.050
+    slot_y_ext = 0.070
+    slot_z     = HINGE_H + 0.004
 
     cutter_mesh = bpy.data.meshes.new("_HingeRecess_Cutter")
     cutter_obj  = bpy.data.objects.new("_HingeRecess_Cutter", cutter_mesh)
@@ -107,7 +107,6 @@ def _apply_hinge_recesses(post_obj, col, hinge_z_positions_world,
 
     for hz_bot_world in hinge_z_positions_world:
         hz_ctr_world = hz_bot_world + slot_z * 0.5
-        # The slot is centred on the pivot X, pushed slightly into the post face.
         slot_cx = pivot_x_world - x_sign * (slot_depth * 0.5)
         g = bmesh.ops.create_cube(cbm, size=1.0)
         bmesh.ops.scale(cbm,     verts=g['verts'], vec=(slot_depth + 0.002, slot_y_ext, slot_z))
@@ -136,11 +135,11 @@ def _apply_hinge_recesses(post_obj, col, hinge_z_positions_world,
 
 # ─────────────────────────────────────────────────────────────────────────────
 def rebuild_container(root_obj, context=None):
-    """Rebuilds the container geometry based on current properties."""
+    """Rebuild the container geometry from scratch based on current properties."""
     if not root_obj or not root_obj.shipping_container.is_container:
         return
 
-    # Generate a random seed for this specific container if it doesn't have one
+    # Assign a stable random seed to this container instance
     if "container_seed" not in root_obj:
         root_obj["container_seed"] = (random.random() * 0.999) + 0.001
     container_seed = float(root_obj["container_seed"])
@@ -187,7 +186,7 @@ def rebuild_container(root_obj, context=None):
     cy = cl / 2
     cz = ch / 2
 
-    # ── CONDITIONS ───────────────────────────────────────────────────────────
+    # ── VISIBILITY CONDITIONS ─────────────────────────────────────────────────
     p = props
     casting_conditions = {
         "Casting_BLF": lambda: p.show_front_panel or p.show_left_panel  or p.show_floor,
@@ -242,12 +241,12 @@ def rebuild_container(root_obj, context=None):
             col.objects.link(casting)
             casting.parent = root_obj
 
-    # ── POSTS (created first so we can boolean the front two) ─────────────────
+    # ── POSTS ─────────────────────────────────────────────────────────────────
     posts = [
-        ("Front_Left_Post",  (cx,       cy,       H / 2)),
-        ("Front_Right_Post", (W - cx,   cy,       H / 2)),
-        ("Back_Left_Post",   (cx,       L - cy,   H / 2)),
-        ("Back_Right_Post",  (W - cx,   L - cy,   H / 2)),
+        ("Front_Left_Post",  (cx,     cy,     H / 2)),
+        ("Front_Right_Post", (W - cx, cy,     H / 2)),
+        ("Back_Left_Post",   (cx,     L - cy, H / 2)),
+        ("Back_Right_Post",  (W - cx, L - cy, H / 2)),
     ]
 
     created_posts = {}
@@ -259,41 +258,37 @@ def rebuild_container(root_obj, context=None):
             created_posts[name] = post
 
     # ── HINGE RECESSES in front posts ────────────────────────────────────────
-    # Panel dimensions needed to compute door height (same formula used below).
     panel_w = W - (2 * cx) - pw
     panel_l = L - (2 * cy) - pw
     panel_h = H - (2 * cz) - rh
 
-    # World-Z of the door bottom (= the door pivot's Z position in rebuild below).
     door_floor_z = cz + rh / 2
 
     if props.show_front_panel:
         door_h = panel_h
-        # get_hinge_positions() returns door-local Z (bottom of each hinge).
         hinge_z_local = get_hinge_positions(door_h)
-        # Convert to world Z.
         hinge_z_world = [door_floor_z + z for z in hinge_z_local]
 
         if props.show_left_door and "Front_Left_Post" in created_posts:
             _apply_hinge_recesses(
-                post_obj             = created_posts["Front_Left_Post"],
-                col                  = col,
+                post_obj                = created_posts["Front_Left_Post"],
+                col                     = col,
                 hinge_z_positions_world = hinge_z_world,
-                pivot_x_world        = cx + pw / 2,   # X of the left hinge pivot
-                post_cy_world        = cy,             # Y centre of front posts
-                x_sign               = +1,             # recess opens toward +X face
-                context              = context,
+                pivot_x_world           = cx + pw / 2,
+                post_cy_world           = cy,
+                x_sign                  = +1,
+                context                 = context,
             )
 
         if props.show_right_door and "Front_Right_Post" in created_posts:
             _apply_hinge_recesses(
-                post_obj             = created_posts["Front_Right_Post"],
-                col                  = col,
+                post_obj                = created_posts["Front_Right_Post"],
+                col                     = col,
                 hinge_z_positions_world = hinge_z_world,
-                pivot_x_world        = W - cx - pw / 2,  # X of the right hinge pivot
-                post_cy_world        = cy,
-                x_sign               = -1,               # recess opens toward -X face
-                context              = context,
+                pivot_x_world           = W - cx - pw / 2,
+                post_cy_world           = cy,
+                x_sign                  = -1,
+                context                 = context,
             )
 
     # ── FORKLIFT POCKET CUTTERS ───────────────────────────────────────────────
@@ -317,7 +312,6 @@ def rebuild_container(root_obj, context=None):
             ("Back_Bottom_Rail",  (W / 2, L - cy, cz)),
             ("Back_Top_Rail",     (W / 2, L - cy, H - cz)),
         ]
-
         for name, loc in fb_rails:
             if fb_rail_conditions.get(name, lambda: False)():
                 rail = create_box(name, fb_rail_len, pw, rh, loc)
@@ -332,7 +326,6 @@ def rebuild_container(root_obj, context=None):
             ("Right_Bottom_Rail", (W - cx, L / 2, cz)),
             ("Right_Top_Rail",    (W - cx, L / 2, H - cz)),
         ]
-
         for name, loc in side_rails:
             if side_rail_conditions.get(name, lambda: False)():
                 rail = create_box(name, pw, side_rail_len, rh, loc)
@@ -362,26 +355,33 @@ def rebuild_container(root_obj, context=None):
     if props.show_front_panel:
         door_w      = panel_w / 2
         door_h      = panel_h
-        floor_z_off = cz + rh / 2   # world-Z of door bottom = door-local Z origin
+        floor_z_off = cz + rh / 2
+
+        # Number of corrugation ribs from the property
+        n_corr = props.door_corrugations
 
         if props.show_left_door:
             left_pivot = bpy.data.objects.new("Left_Door_Pivot", None)
-            left_pivot.empty_display_type = 'ARROWS'
-            left_pivot.empty_display_size = 0.3
-            left_pivot.location      = (cx + pw / 2, cy, floor_z_off)
-            left_pivot.rotation_euler = (0.0, 0.0, -props.door_open_angle)
+            left_pivot.empty_display_type  = 'ARROWS'
+            left_pivot.empty_display_size  = 0.3
+            left_pivot.location            = (cx + pw / 2, cy, floor_z_off)
+            left_pivot.rotation_euler      = (0.0, 0.0, -props.door_open_angle)
             col.objects.link(left_pivot)
             left_pivot.parent = root_obj
             left_pivot["is_container_part"] = True
 
-            for builder, suffix in [
-                (create_door_panel,       "Panel"),
-                (create_door_hinges,      "Hinges"),
-            ]:
-                obj = builder(f"Left_{suffix}", door_w, door_h, True)
-                col.objects.link(obj)
-                obj.parent = left_pivot
+            # Door panel — passes corrugation count
+            lp = create_door_panel("Left_Panel", door_w, door_h, True,
+                                   num_corrugations=n_corr)
+            col.objects.link(lp)
+            lp.parent = left_pivot
 
+            # Hinges
+            lh = create_door_hinges("Left_Hinges", door_w, door_h, True)
+            col.objects.link(lh)
+            lh.parent = left_pivot
+
+            # Locking hardware
             hw = create_locking_hardware(
                 "Left_Hardware", door_w, door_h, True, floor_z_off)
             col.objects.link(hw)
@@ -389,22 +389,26 @@ def rebuild_container(root_obj, context=None):
 
         if props.show_right_door:
             right_pivot = bpy.data.objects.new("Right_Door_Pivot", None)
-            right_pivot.empty_display_type = 'ARROWS'
-            right_pivot.empty_display_size = 0.3
-            right_pivot.location      = (W - cx - pw / 2, cy, floor_z_off)
-            right_pivot.rotation_euler = (0.0, 0.0, props.door_open_angle)
+            right_pivot.empty_display_type  = 'ARROWS'
+            right_pivot.empty_display_size  = 0.3
+            right_pivot.location            = (W - cx - pw / 2, cy, floor_z_off)
+            right_pivot.rotation_euler      = (0.0, 0.0, props.door_open_angle)
             col.objects.link(right_pivot)
             right_pivot.parent = root_obj
             right_pivot["is_container_part"] = True
 
-            for builder, suffix in [
-                (create_door_panel,       "Panel"),
-                (create_door_hinges,      "Hinges"),
-            ]:
-                obj = builder(f"Right_{suffix}", door_w, door_h, False)
-                col.objects.link(obj)
-                obj.parent = right_pivot
+            # Door panel
+            rp = create_door_panel("Right_Panel", door_w, door_h, False,
+                                   num_corrugations=n_corr)
+            col.objects.link(rp)
+            rp.parent = right_pivot
 
+            # Hinges
+            rh_obj = create_door_hinges("Right_Hinges", door_w, door_h, False)
+            col.objects.link(rh_obj)
+            rh_obj.parent = right_pivot
+
+            # Locking hardware
             hw = create_locking_hardware(
                 "Right_Hardware", door_w, door_h, False, floor_z_off)
             col.objects.link(hw)
@@ -413,7 +417,7 @@ def rebuild_container(root_obj, context=None):
             # ── Decals on the right door ──────────────────────────────────────
             decal_id = create_text_decal(
                 "Decal_ID", container_id, size=0.12, align_x='RIGHT')
-            decal_id.location      = (-0.1, -0.05, door_h - 0.3)
+            decal_id.location       = (-0.1, -0.05, door_h - 0.3)
             decal_id.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_id)
             decal_id.parent = right_pivot
@@ -426,7 +430,7 @@ def rebuild_container(root_obj, context=None):
             )
             decal_specs = create_text_decal(
                 "Decal_Specs", specs_text, size=0.06, align_x='LEFT')
-            decal_specs.location      = (-door_w + 0.1, -0.05, door_h / 2)
+            decal_specs.location       = (-door_w + 0.1, -0.05, door_h / 2)
             decal_specs.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_specs)
             decal_specs.parent = right_pivot
@@ -499,9 +503,7 @@ def rebuild_container(root_obj, context=None):
         roof_assembly["is_container_part"] = True
 
         roof_panel = create_corrugated_panel(
-            "Roof_Panel",
-            panel_l,
-            panel_w,
+            "Roof_Panel", panel_l, panel_w,
             (0, 0, 0),
             (0, 0, math.radians(90)),
             profile="OFFICIAL_SIDE",
@@ -524,7 +526,6 @@ def rebuild_container(root_obj, context=None):
         if obj.type == 'MESH':
             obj["container_seed"] = container_seed
 
-            # Hardware objects (locking bars, cams, guides, handles …)
             if obj.get("is_hardware"):
                 mat = hardware_mat
             elif "Wood" in obj.name:

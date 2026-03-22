@@ -8,6 +8,7 @@ bl_info = {
     "category": "Add Mesh",
 }
 
+import bpy
 import importlib
 
 if "utils" in locals():

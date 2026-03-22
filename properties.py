@@ -6,11 +6,12 @@ def update_container_rebuild(self, context):
     rebuild_system.rebuild_container(self.id_data, context=context)
 
 def update_door_angle(self, context):
-    """Fast path for door animation without a full rebuild when possible."""
+    """Fast path for door animation — avoids full rebuild when pivot update suffices."""
     root_obj = self.id_data
     if rebuild_system.update_door_pivots(root_obj):
         return
     rebuild_system.rebuild_container(root_obj, context=context)
+
 
 class ShippingContainerProperties(bpy.types.PropertyGroup):
     is_container: bpy.props.BoolProperty(
@@ -44,7 +45,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
 
     door_open_angle: bpy.props.FloatProperty(
         name="Door Angle",
-        description="Angle of the doors",
+        description="How far the doors are open",
         default=0.0,
         min=0.0,
         max=4.71239,
@@ -52,7 +53,20 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         update=update_door_angle
     ) # type: ignore
 
-    # ── Panel toggles ──────────────────────────────────────────────────────────
+    door_corrugations: bpy.props.IntProperty(
+        name="Door Corrugations",
+        description=(
+            "Number of vertical corrugation ribs on each door panel. "
+            "0 = flat recessed panel.  Maximum that fits depends on door width "
+            "(auto-clamped with a 15 mm minimum gap)."
+        ),
+        default=4,
+        min=0,
+        max=8,
+        update=update_container_rebuild,
+    ) # type: ignore
+
+    # ── Panel visibility toggles ───────────────────────────────────────────────
     show_front_panel: bpy.props.BoolProperty(
         name="Front Frame & Doors", default=True,  update=update_container_rebuild) # type: ignore
     show_left_door:   bpy.props.BoolProperty(
@@ -71,9 +85,8 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         name="Roof",                default=True,  update=update_container_rebuild) # type: ignore
 
     # ── Stack Creator settings ─────────────────────────────────────────────────
-    # These properties are read-only by the stack operator; they do NOT trigger
-    # a container rebuild (no update= callback) since they only affect the
-    # separate baked stack, not the source container.
+    # These properties do NOT trigger a container rebuild — they only control the
+    # separate baked stack created by the Stack Creator operator.
 
     stack_width: bpy.props.IntProperty(
         name="Width",
@@ -82,6 +95,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         min=1,
         max=20,
     ) # type: ignore
+
     stack_depth: bpy.props.IntProperty(
         name="Depth",
         description="Number of containers front to back (Y axis)",
@@ -89,6 +103,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         min=1,
         max=20,
     ) # type: ignore
+
     stack_height: bpy.props.IntProperty(
         name="Height",
         description="Number of containers stacked vertically (Z axis)",
@@ -96,6 +111,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         min=1,
         max=20,
     ) # type: ignore
+
     stack_random_orient: bpy.props.BoolProperty(
         name="Random Orientation",
         description=(
@@ -104,37 +120,13 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         ),
         default=False,
     ) # type: ignore
+
     stack_seed: bpy.props.IntProperty(
         name="Seed",
         description="Random seed controlling container colours and orientations",
         default=42,
         min=0,
     ) # type: ignore
-    stack_width: bpy.props.IntProperty(
-       name="Stack Width",
-       description="Number of containers along X",
-       default=2, min=1, max=20,
-    ) # type: ignore
-    stack_depth: bpy.props.IntProperty(
-       name="Stack Depth",
-       description="Number of containers along Y",
-       default=2, min=1, max=20,
-    ) # type: ignore
-    stack_height: bpy.props.IntProperty(
-       name="Stack Height",
-       description="Number of containers stacked vertically",
-       default=2, min=1, max=10,
-    ) # type: ignore
-    stack_seed: bpy.props.IntProperty(
-       name="Stack Seed",
-       description="Random seed for orientation and container colours",
-       default=42,
-    ) # type: ignore
-    stack_random_orient: bpy.props.BoolProperty(
-       name="Random Orientation",
-       description="Randomly rotate containers 180° to vary door placement",
-       default=True,
-   ) # type: ignore
 
 
 def register():
