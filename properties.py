@@ -21,6 +21,8 @@ def update_shader_props(self, context):
     No geometry rebuild is needed — the v5 shader reads these values via
     ShaderNodeAttribute (attribute_type='OBJECT'), so changing the custom
     property on a mesh child is sufficient to update the rendered result.
+    update_tag() is called on each child so Blender's depsgraph knows to
+    re-evaluate the material even though no geometry changed.
     """
     root_obj = self.id_data
     if not root_obj:
@@ -36,6 +38,9 @@ def update_shader_props(self, context):
             child["shader_scratch_intensity"]  = p.shader_scratch_intensity
             child["shader_color_override_amt"] = p.shader_color_override_amount
             child["shader_color_override"]     = color
+            # Tell the depsgraph this object's data changed so the shader
+            # re-evaluates the ShaderNodeAttribute values immediately.
+            child.update_tag(refresh={'OBJECT'})
 
 
 class ShippingContainerProperties(bpy.types.PropertyGroup):
@@ -50,8 +55,8 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         description="Standard ISO container size",
         items=[
             ('10FT', "10ft", "10 foot container"),
-            ('20FT', "20ft", "20 foot container"),
-            ('40FT', "40ft", "40 foot container"),
+            ('20FT', "20ft", "20 foot standard container"),
+            ('40FT', "40ft", "40 foot standard container"),
         ],
         default='20FT',
         update=update_container_rebuild,
@@ -85,9 +90,9 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
             "0 = flat recessed panel.  Maximum that fits depends on door height "
             "(auto-clamped with a 15 mm minimum gap)."
         ),
-        default=3,
+        default=4,
         min=0,
-        max=5,
+        max=8,
         update=update_container_rebuild,
     ) # type: ignore
 
@@ -97,7 +102,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         description="Expand / collapse the Parts visibility toggles",
         default=False,
     ) # type: ignore
-    
+
     show_front_panel: bpy.props.BoolProperty(
         name="Front Frame & Doors", default=True,  update=update_container_rebuild) # type: ignore
     show_left_door:   bpy.props.BoolProperty(

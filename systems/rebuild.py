@@ -469,7 +469,7 @@ def rebuild_container(root_obj, context=None):
                 "CU. CAP.   33.2 CU.M"
             )
             decal_specs = create_text_decal(
-                "Decal_Specs", specs_text, size=0.06, align_x='CENTER')
+                "Decal_Specs", specs_text, size=0.06, align_x='CENTER', align_y='CENTER')
             decal_specs.location       = (cx_right, -0.001, specs_z)
             decal_specs.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_specs)
@@ -481,7 +481,7 @@ def rebuild_container(root_obj, context=None):
                     if specs_idx >= 0 and specs_idx + 1 < len(sorted_gaps)
                     else specs_z + 0.200)
             decal_id = create_text_decal(
-                "Decal_ID", container_id, size=0.12, align_x='CENTER')
+                "Decal_ID", container_id, size=0.12, align_x='CENTER', align_y='CENTER')
             decal_id.location       = (cx_right, -0.001, id_z)
             decal_id.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_id)

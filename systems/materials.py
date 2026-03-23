@@ -379,7 +379,6 @@ def _build_shader_group():
 
     cr_dust_h = _color_ramp(N, "CR_DustH", (-1100, 1800),
         [(0.00, (0.0, 0.0, 0.0, 1.0)),
-         (0.15, (0.5, 0.5, 0.5, 1.0)),
          (1.00, (1.0, 1.0, 1.0, 1.0))], 'EASE')
     L(math_dust_h.outputs[0], cr_dust_h.inputs[0])
 
@@ -475,7 +474,7 @@ def _build_shader_group():
 # ─────────────────────────────────────────────────────────────────────
 
 def get_or_create_container_material():
-    """Return the ISO_Container_Metal material, building it if absent.
+    """Return the ISO_Container_Metal v5 material, building it if absent.
 
     To force full regeneration delete 'ISO_Container_Metal' from
     bpy.data.materials and 'ISO_Container_Shader' from bpy.data.node_groups.
