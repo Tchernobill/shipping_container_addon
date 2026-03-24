@@ -8,48 +8,56 @@ bl_info = {
     "category": "Add Mesh",
 }
 
-import bpy
-import importlib
+import bpy  # noqa: E402
+import importlib  # noqa: E402
 
-if "utils" in locals():
-    # Reload submodules in a dependency-friendly order.
-    importlib.reload(utils)
+# Detect Blender "live reload" (the module globals persist between runs).
+_IS_RELOAD = "utils" in globals()
 
-    importlib.reload(panels)
-    importlib.reload(frame)
-    importlib.reload(corrugation)
-    importlib.reload(doors)
-    importlib.reload(castings)
-    importlib.reload(roof)
-    importlib.reload(floor)
-    importlib.reload(decals)
-    importlib.reload(proxy)
+from . import utils  # noqa: E402
+from . import properties  # noqa: E402
+from . import ui  # noqa: E402
+from . import operators  # noqa: E402
 
-    importlib.reload(materials)
-    importlib.reload(rebuild)
+# Imported for dev reload convenience (called by rebuild/material systems).
+from .geometry import panels  # noqa: E402
+from .geometry import frame  # noqa: E402
+from .geometry import corrugation  # noqa: E402
+from .geometry import doors  # noqa: E402
+from .geometry import castings  # noqa: E402
+from .geometry import roof  # noqa: E402
+from .geometry import floor  # noqa: E402
+from .geometry import decals  # noqa: E402
+from .geometry import proxy  # noqa: E402
 
-    importlib.reload(properties)
-    importlib.reload(operators)
-    importlib.reload(ui)
-else:
-    from . import utils
-    from . import properties
-    from . import ui
-    from . import operators
+from .systems import materials  # noqa: E402
+from .systems import rebuild  # noqa: E402
 
-    # Imported for dev reload convenience (called by rebuild/material systems).
-    from .geometry import panels
-    from .geometry import frame
-    from .geometry import corrugation
-    from .geometry import doors
-    from .geometry import castings
-    from .geometry import roof
-    from .geometry import floor
-    from .geometry import decals
-    from .geometry import proxy
+_RELOAD_ORDER = [
+    # Core utils first.
+    utils,
+    # Geometry builders.
+    panels,
+    frame,
+    corrugation,
+    doors,
+    castings,
+    roof,
+    floor,
+    decals,
+    proxy,
+    # Systems (depend on geometry + utils).
+    materials,
+    rebuild,
+    # UI-facing modules.
+    properties,
+    operators,
+    ui,
+]
 
-    from .systems import materials
-    from .systems import rebuild
+if _IS_RELOAD:
+    for reload_module in _RELOAD_ORDER:
+        importlib.reload(reload_module)
 
 modules = [
     properties,
@@ -58,14 +66,14 @@ modules = [
 ]
 
 def register():
-    for mod in modules:
-        if hasattr(mod, "register"):
-            mod.register()
+    for addon_module in modules:
+        if hasattr(addon_module, "register"):
+            addon_module.register()
 
 def unregister():
-    for mod in reversed(modules):
-        if hasattr(mod, "unregister"):
-            mod.unregister()
+    for addon_module in reversed(modules):
+        if hasattr(addon_module, "unregister"):
+            addon_module.unregister()
     # Clean up the cached casting mesh
     if "ISO_Casting_Master_Mesh" in bpy.data.meshes:
         m = bpy.data.meshes["ISO_Casting_Master_Mesh"]

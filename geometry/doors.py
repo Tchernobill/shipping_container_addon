@@ -56,7 +56,6 @@ LEAF_T     = 0.060   # total door leaf thickness (Y axis)
 HINGE_D    = 0.040   # hinge cylinder diameter
 HINGE_R    = HINGE_D * 0.5
 HINGE_H    = 0.130   # hinge cylinder height (Z axis)
-HINGE_GAP  = 0.700   # centre-to-centre hinge spacing
 NUM_HINGES = 4
 
 BAR1_EDGE     = 0.170   # locking bar 1: distance from closing edge
@@ -293,11 +292,12 @@ def _hinge_z_positions(door_height, hinge_count=NUM_HINGES, hinge_height=HINGE_H
     cylinder extents), matching the door-instancing expectation.
     """
     hinge_count = max(1, int(hinge_count))
+    _ = hinge_height
     if hinge_count == 1:
         return [door_height * 0.5]
     margin = 0.05
     z0 = margin
-    z1 = (door_height - margin)
+    z1 = door_height - margin
     if z1 <= z0:
         return [door_height * 0.5]
     step = (z1 - z0) / (hinge_count - 1)
@@ -398,8 +398,12 @@ def get_hinge_master_bounds():
     max_v = mathutils.Vector((-1.0e9, -1.0e9, -1.0e9))
     for v in mesh.vertices:
         co = v.co
-        min_v.x = min(min_v.x, co.x); min_v.y = min(min_v.y, co.y); min_v.z = min(min_v.z, co.z)
-        max_v.x = max(max_v.x, co.x); max_v.y = max(max_v.y, co.y); max_v.z = max(max_v.z, co.z)
+        min_v.x = min(min_v.x, co.x)
+        min_v.y = min(min_v.y, co.y)
+        min_v.z = min(min_v.z, co.z)
+        max_v.x = max(max_v.x, co.x)
+        max_v.y = max(max_v.y, co.y)
+        max_v.z = max(max_v.z, co.z)
     return (min_v, max_v)
 
 
@@ -443,14 +447,18 @@ def _corr_profile(z0, panel_h, n_corr):
 
     for i in range(n):
         # Slope inward (Y increases away from viewer)
-        z += CORR_SLOPE;  pts.append((z, CORR_DEPTH))
+        z += CORR_SLOPE
+        pts.append((z, CORR_DEPTH))
         # Inner flat at rib bottom (deepest point)
-        z += CORR_INSIDE; pts.append((z, CORR_DEPTH))
+        z += CORR_INSIDE
+        pts.append((z, CORR_DEPTH))
         # Slope back out to flush face
-        z += CORR_SLOPE;  pts.append((z, 0.0))
+        z += CORR_SLOPE
+        pts.append((z, 0.0))
         # Full gap between ribs; trailing half-gap after last rib
         gap = space if (i < n - 1) else space * 0.5
-        z  += gap;        pts.append((z, 0.0))
+        z += gap
+        pts.append((z, 0.0))
 
     return pts
 
@@ -559,7 +567,7 @@ def create_door_panel(name, width, height, is_left, num_corrugations=4):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-def create_door_hinges(name, width, height, is_left, hinge_count=NUM_HINGES):
+def create_door_hinges(name, _width, height, is_left, hinge_count=NUM_HINGES):
     """Instanced hinges with cylinder pivot.
 
     Master hinge mesh:

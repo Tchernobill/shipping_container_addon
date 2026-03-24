@@ -8,11 +8,11 @@ def create_roof_bows(name, width, length, spacing=0.6):
     bow_w = width
     bow_l = 0.04 # 40mm wide
     bow_h = 0.02 # 20mm high
-    
+
     # Calculate number of bows based on length and spacing
     num_bows = max(1, int(length / spacing))
     actual_spacing = length / num_bows
-    
+
     mesh_name = f"_ISO_RoofBows_{int(round(width*1e6))}_{int(round(length*1e6))}_{int(round(spacing*1e6))}"
     mesh = bpy.data.meshes.get(mesh_name)
     if mesh is None:

@@ -143,7 +143,7 @@ class OBJECT_PT_shipping_container_properties(bpy.types.Panel):
 #  Add menu
 # ─────────────────────────────────────────────────────────────────────────────
 
-def menu_func(self, context):
+def menu_func(self, _context):
     self.layout.operator("object.create_shipping_container",
                          text="Shipping Container", icon='MESH_CUBE')
 

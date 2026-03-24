@@ -48,19 +48,19 @@ def remove_object_and_orphan_data(obj):
 
 def clear_container_children(root_obj):
     """Safely deletes all generated container parts parented to the root (recursively)."""
-    
+
     def get_all_children(obj):
         children = []
         for child in obj.children:
             children.append(child)
             children.extend(get_all_children(child))
         return children
-        
+
     # Get all nested children
     objs_to_delete = [child for child in get_all_children(root_obj) if child.get("is_container_part")]
-    
+
     # Reverse the list so we delete deepest children first (prevents unparenting issues)
     objs_to_delete.reverse()
-    
+
     for obj in objs_to_delete:
         remove_object_and_orphan_data(obj)

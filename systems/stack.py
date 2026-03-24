@@ -183,13 +183,13 @@ def _get_visible_faces(i, j, k, sw, sd, sh, front_facing):
         k → Z (height)  : 0 = ground level
     """
 
-    is_stack_left  = (i == 0)
-    is_stack_right = (i == sw - 1)
-    is_stack_front = (j == 0)
-    is_stack_back  = (j == sd - 1)
+    is_stack_left = i == 0
+    is_stack_right = i == sw - 1
+    is_stack_front = j == 0
+    is_stack_back = j == sd - 1
 
-    show_floor = (k == 0)
-    show_roof  = (k == sh - 1)
+    show_floor = k == 0
+    show_roof = k == sh - 1
 
     if front_facing:
         # Container's local axes align with the global stack axes — no remapping.

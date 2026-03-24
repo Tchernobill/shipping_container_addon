@@ -1,0 +1,31 @@
+[MASTER]
+ignore=__pycache__,.ruff_cache
+ignore-patterns=.*_report\.txt$
+
+[TYPECHECK]
+# Blender-only modules when linting outside Blender.
+ignored-modules=bpy,bmesh,mathutils
+
+[BASIC]
+# Common short names used throughout the addon.
+good-names=i,j,k,x,y,z,W,L,H,_,bm,tc,mp,N,L
+
+[MESSAGES CONTROL]
+disable=
+    import-error,
+    missing-module-docstring,
+    missing-function-docstring,
+    missing-class-docstring,
+    invalid-name,
+    line-too-long,
+    wrong-import-position,
+    wrong-import-order,
+    import-outside-toplevel,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-positional-arguments,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements,
+    duplicate-code
+

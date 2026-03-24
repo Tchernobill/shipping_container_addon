@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+.ruff_cache/
+pylint_report.txt
+ruff_report.txt

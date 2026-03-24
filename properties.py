@@ -15,7 +15,7 @@ def update_door_angle(self, context):
     rebuild_system.rebuild_container(root_obj, context=context)
 
 
-def update_shader_props(self, context):
+def update_shader_props(self, _context):
     """Stamp shader control values onto all metal mesh children.
 
     No geometry rebuild is needed — the v5 shader reads these values via

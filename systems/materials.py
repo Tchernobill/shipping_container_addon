@@ -185,8 +185,10 @@ def _math(nodes, name, loc, op, v0=None, v1=None, clamp=False):
     """Math node with optional constant defaults on inputs 0 and 1."""
     n = _nd(nodes, "ShaderNodeMath", name, loc,
             operation=op, use_clamp=clamp)
-    if v0 is not None: n.inputs[0].default_value = v0
-    if v1 is not None: n.inputs[1].default_value = v1
+    if v0 is not None:
+        n.inputs[0].default_value = v0
+    if v1 is not None:
+        n.inputs[1].default_value = v1
     return n
 
 
@@ -195,16 +197,20 @@ def _mix_rgba(nodes, name, loc, mode, fac=None, b_col=None):
     n = _nd(nodes, "ShaderNodeMix", name, loc,
             blend_type=mode, data_type='RGBA',
             factor_mode='UNIFORM', clamp_factor=True)
-    if fac   is not None: n.inputs[0].default_value = fac
-    if b_col is not None: n.inputs[7].default_value = b_col
+    if fac is not None:
+        n.inputs[0].default_value = fac
+    if b_col is not None:
+        n.inputs[7].default_value = b_col
     return n
 
 
 def _map_range(nodes, name, loc, lo_in, hi_in, lo_out, hi_out):
     """MapRange node (clamped)."""
     n = _nd(nodes, "ShaderNodeMapRange", name, loc, clamp=True)
-    n.inputs[1].default_value = lo_in;  n.inputs[2].default_value = hi_in
-    n.inputs[3].default_value = lo_out; n.inputs[4].default_value = hi_out
+    n.inputs[1].default_value = lo_in
+    n.inputs[2].default_value = hi_in
+    n.inputs[3].default_value = lo_out
+    n.inputs[4].default_value = hi_out
     return n
 
 
@@ -232,8 +238,10 @@ def _build_shader_group():
     The group interface exposes only the single Shader output socket.
     """
     grp = bpy.data.node_groups.new(_GROUP_NAME, 'ShaderNodeTree')
-    N   = grp.nodes
-    def L(a, b): grp.links.new(a, b)
+    N = grp.nodes
+
+    def L(a, b):
+        grp.links.new(a, b)
 
     # Single output — everything is driven by per-object attributes
     grp.interface.new_socket("Shader", in_out='OUTPUT',
@@ -310,7 +318,8 @@ def _build_shader_group():
     # High values = flat; low values approaching 1 = sharp edges.
     geo = _nd(N, "ShaderNodeNewGeometry", "Geometry_Normals", (-2800, -400))
     bev = _nd(N, "ShaderNodeBevel",       "Bevel",            (-2800, -650))
-    bev.samples = 4; bev.inputs[0].default_value = 0.05
+    bev.samples = 4
+    bev.inputs[0].default_value = 0.05
 
     vm_dot = _nd(N, "ShaderNodeVectorMath", "VM_Dot", (-2500, -510),
                  operation='DOT_PRODUCT')
@@ -421,7 +430,9 @@ def _build_shader_group():
 
     # AO mask adds extra grime in concave / sheltered areas
     ao = _nd(N, "ShaderNodeAmbientOcclusion", "AO", (-1900, 2100))
-    ao.samples = 16; ao.only_local = False; ao.inside = False
+    ao.samples = 16
+    ao.only_local = False
+    ao.inside = False
     ao.inputs[1].default_value = 1.0
 
     math_ao_inv = _math(N, "Math_AOInv", (-1600, 2100), 'SUBTRACT', v0=1.0)
@@ -727,8 +738,10 @@ def get_or_create_hardware_material():
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
     nodes.clear()
-    out  = nodes.new('ShaderNodeOutputMaterial'); out.location  = (300, 0)
-    bsdf = nodes.new('ShaderNodeBsdfPrincipled'); bsdf.location = (0,   0)
+    out = nodes.new('ShaderNodeOutputMaterial')
+    out.location = (300, 0)
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
     bsdf.inputs['Base Color'].default_value = (0.35, 0.35, 0.35, 1.0)
     bsdf.inputs['Roughness'].default_value  = 0.40
     bsdf.inputs['Metallic'].default_value   = 0.85
@@ -746,8 +759,10 @@ def get_or_create_brand_material(company_name, hex_color):
     nodes = mat.node_tree.nodes
     links = mat.node_tree.links
     nodes.clear()
-    out  = nodes.new('ShaderNodeOutputMaterial'); out.location  = (300, 0)
-    bsdf = nodes.new('ShaderNodeBsdfPrincipled'); bsdf.location = (0,   0)
+    out = nodes.new('ShaderNodeOutputMaterial')
+    out.location = (300, 0)
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
     bsdf.inputs['Base Color'].default_value = hex_to_linear_rgba(hex_color)
     bsdf.inputs['Roughness'].default_value  = 0.50
     bsdf.inputs['Metallic'].default_value   = 0.0
@@ -777,8 +792,10 @@ def get_or_create_proxy_material():
     links = mat.node_tree.links
     nodes.clear()
 
-    out_node = nodes.new('ShaderNodeOutputMaterial'); out_node.location = (300, 0)
-    bsdf     = nodes.new('ShaderNodeBsdfPrincipled'); bsdf.location     = (0,   0)
+    out_node = nodes.new('ShaderNodeOutputMaterial')
+    out_node.location = (300, 0)
+    bsdf = nodes.new('ShaderNodeBsdfPrincipled')
+    bsdf.location = (0, 0)
 
     # Seed attribute: prefer container_seed; fall back to Object Info Random
     attr = nodes.new('ShaderNodeAttribute')
@@ -796,7 +813,8 @@ def get_or_create_proxy_material():
     els = cr.color_ramp.elements
     for i, (pos, col) in enumerate(_PALETTE):
         if i < len(els):
-            els[i].position = pos; els[i].color = col
+            els[i].position = pos
+            els[i].color = col
         else:
             els.new(pos).color = col
 
@@ -811,7 +829,8 @@ def get_or_create_proxy_material():
     mix_seed.data_type  = 'FLOAT'
     mix_seed.blend_type = 'MIX'
 
-    tex_coord = nodes.new('ShaderNodeTexCoord'); tex_coord.location = (-1200, -200)
+    tex_coord = nodes.new('ShaderNodeTexCoord')
+    tex_coord.location = (-1200, -200)
 
     node_diffuse = nodes.new('ShaderNodeTexImage')
     node_diffuse.location = (-800, -100)
@@ -831,7 +850,8 @@ def get_or_create_proxy_material():
     node_normal.location = (-800, -700)
     node_normal.image    = get_or_create_proxy_image("proxy_normal.png",   (0.5, 0.5, 1.0, 1.0), is_data=True)
 
-    normal_map = nodes.new('ShaderNodeNormalMap'); normal_map.location = (-400, -700)
+    normal_map = nodes.new('ShaderNodeNormalMap')
+    normal_map.location = (-400, -700)
 
     links.new(tex_coord.outputs['UV'],    node_diffuse.inputs['Vector'])
     links.new(tex_coord.outputs['UV'],    node_rough.inputs['Vector'])

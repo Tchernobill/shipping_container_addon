@@ -1,9 +1,7 @@
 import bpy
-import bmesh
 import math
 import random
-from ..utils import CONTAINER_SIZES, clear_container_children, remove_object_and_orphan_data
-from ..geometry.panels import create_plane
+from ..utils import CONTAINER_SIZES, clear_container_children
 from ..geometry.frame import create_box
 from ..geometry.corrugation import create_corrugated_panel
 from ..geometry.doors import (
@@ -90,57 +88,6 @@ def update_door_pivots(root_obj):
     if (props.show_left_door or props.show_right_door) and not updated_any:
         return False
     return True
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-def _apply_hinge_recesses(post_obj, col, hinge_z_positions_world,
-                          pivot_x_world, post_cy_world, x_sign,
-                          context=None):
-    """Boolean-cut rectangular slots into a front post to accept hinge leaves.
-
-    post_obj                  – the post mesh object (already linked)
-    hinge_z_positions_world   – list of world-Z values for the *centre* of each hinge
-    pivot_x_world             – world X of the hinge pivot axis
-    post_cy_world             – world Y centre of the front posts
-    x_sign                    – +1 (left post, recess opens toward +X)
-                                −1 (right post, recess opens toward −X)
-    """
-    # NOTE: This function is currently unused for the front posts.
-    # Front posts are now built as a cube assembly with hinge gaps instead of
-    # being boolean-cut. Kept for backwards compatibility / future reuse.
-    slot_depth = 0.050
-    slot_y_ext = 0.070
-    slot_z     = HINGE_H + 0.004
-
-    cutter_mesh = bpy.data.meshes.new("_HingeRecess_Cutter")
-    cutter_obj  = bpy.data.objects.new("_HingeRecess_Cutter", cutter_mesh)
-    cbm = bmesh.new()
-
-    for hz_ctr_world in hinge_z_positions_world:
-        slot_cx = pivot_x_world - x_sign * (slot_depth * 0.5)
-        g = bmesh.ops.create_cube(cbm, size=1.0)
-        bmesh.ops.scale(cbm,     verts=g['verts'], vec=(slot_depth + 0.002, slot_y_ext, slot_z))
-        bmesh.ops.translate(cbm, verts=g['verts'], vec=(slot_cx, post_cy_world, hz_ctr_world))
-
-    cbm.to_mesh(cutter_mesh)
-    cbm.free()
-    col.objects.link(cutter_obj)
-
-    mod = post_obj.modifiers.new("HingeRecess", 'BOOLEAN')
-    mod.object    = cutter_obj
-    mod.operation = 'DIFFERENCE'
-    mod.solver    = 'MANIFOLD'
-
-    try:
-        depsgraph = _get_depsgraph(context=context)
-        eval_post = post_obj.evaluated_get(depsgraph)
-        new_mesh  = bpy.data.meshes.new_from_object(eval_post)
-        old_mesh  = post_obj.data
-        post_obj.data = new_mesh
-        bpy.data.meshes.remove(old_mesh)
-        post_obj.modifiers.clear()
-    finally:
-        remove_object_and_orphan_data(cutter_obj)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -324,7 +271,8 @@ def rebuild_container(root_obj, context=None):
         seg_i = 0
         for gs, ge in merged:
             if gs > cur:
-                _add_segment(cur, gs, seg_i); seg_i += 1
+                _add_segment(cur, gs, seg_i)
+                seg_i += 1
             cur = max(cur, ge)
         if cur < z1:
             _add_segment(cur, z1, seg_i)
@@ -680,11 +628,11 @@ def rebuild_container(root_obj, context=None):
                 obj["shader_scratch_intensity"]  = props.shader_scratch_intensity
                 obj["shader_color_override_amt"] = props.shader_color_override_amount
                 obj["shader_color_override"]     = list(props.shader_color_override)
-                mat = get_or_create_container_material()
+                mat = metal_mat
             elif "Wood" in obj.name:
                 mat = wood_mat
             else:
-                mat = get_or_create_container_material()
+                mat = metal_mat
 
             if obj.data.materials:
                 obj.data.materials[0] = mat

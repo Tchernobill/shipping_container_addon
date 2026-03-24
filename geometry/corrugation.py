@@ -5,13 +5,13 @@ from .primitives import create_object_from_mesh
 
 def _build_official_side_profile_points(width, depth):
     """Build the OFFICIAL trapezoidal corrugation profile (real ISO container spec).
-    
+
     Repeating unit (meters):
     - 70 mm flat at z=0          (Interface / bottom)
     - 68 mm slope up to depth    (inward slope)
     - 72 mm flat at depth        (Outerface / rib)
     - 68 mm slope down to z=0    (outward slope)
-    
+
     Exact pitch = 0.278 m.
     """
     w_bottom = 0.070
@@ -119,10 +119,10 @@ def create_corrugated_panel(
     corrugation_depth=0.036,
 ):
     """Creates a corrugated panel mesh.
-    
+
     OFFICIAL_SIDE = authentic ISO trapezoidal profile (70-68-72-68 mm pattern with real slopes).
     LEGACY = old trapezoidal wave (for backwards compatibility).
-    
+
     Local axes:
     - X: panel width
     - Y: panel height

@@ -1,9 +1,12 @@
 import bpy
 import bmesh
 
+
 def map_range(value, in_min, in_max, out_min, out_max):
-    if in_max == in_min: return out_min
+    if in_max == in_min:
+        return out_min
     return out_min + (((value - in_min) / (in_max - in_min)) * (out_max - out_min))
+
 
 def create_proxy_box(name, W, L, H):
     """Creates a 9-sliced low-poly box with perfect UV mapping for LODs."""
@@ -52,23 +55,22 @@ def create_proxy_box(name, W, L, H):
             make_face(verts[3][j][k], verts[3][j][k+1], verts[3][j+1][k+1], verts[3][j+1][k])
 
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    
+
     # --- 9-SLICE UV MAPPING ---
     base_W, base_L, base_H = 2.438, 6.058, 2.591
-    
+
     def get_uv_coord(val, max_val, margin, base_max):
         if val <= margin + 0.001:
             return val / base_max
-        elif val >= max_val - margin - 0.001:
+        if val >= max_val - margin - 0.001:
             return (base_max - (max_val - val)) / base_max
-        else:
-            return map_range(val, margin, max_val-margin, margin/base_max, (base_max-margin)/base_max)
+        return map_range(val, margin, max_val-margin, margin/base_max, (base_max-margin)/base_max)
 
     uv_layer = bm.loops.layers.uv.verify()
     for face in bm.faces:
         normal = face.normal
         nx, ny, nz = abs(normal.x), abs(normal.y), abs(normal.z)
-        
+
         for loop in face.loops:
             v = loop.vert.co
             if nx > ny and nx > nz: # Left/Right
@@ -80,11 +82,11 @@ def create_proxy_box(name, W, L, H):
             else: # Top/Bottom
                 u = get_uv_coord(v.x, W, mx, base_W)
                 v_coord = get_uv_coord(v.y, L, my, base_L)
-                
+
             loop[uv_layer].uv = (u, v_coord)
 
     bm.to_mesh(mesh)
     bm.free()
-    
+
     obj["is_container_part"] = True
     return obj

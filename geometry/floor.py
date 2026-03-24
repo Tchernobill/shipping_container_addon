@@ -25,15 +25,15 @@ def create_floor_cross_members(name, width, length, spacing=0.3, pocket_spacing=
     beam_w = width
     beam_l = 0.05 # 50mm wide
     beam_h = 0.0975 # Match rail height perfectly
-    
+
     # Calculate number of cross members based on length and spacing
     num_beams = max(1, int(length / spacing))
     actual_spacing = length / num_beams
-    
+
     pocket_w = 0.300 # Scaled pocket width
     pocket_y1 = -pocket_spacing/2
     pocket_y2 = pocket_spacing/2
-    
+
     mesh_name = (
         f"_ISO_FloorCrossMembers_{int(round(width*1e6))}_{int(round(length*1e6))}_"
         f"{int(round(spacing*1e6))}_{int(round(pocket_spacing*1e6))}"
@@ -70,8 +70,8 @@ def create_wooden_floor(name, width, length):
 
 def create_forklift_pocket_cutters(name, width, spacing=2.05):
     """Creates boolean cutters for punching holes in the side rails."""
-    pocket_w = 0.300 
-    pocket_h = 0.080 
+    pocket_w = 0.300
+    pocket_h = 0.080
     pocket_d = width + 0.5 # Extra wide to ensure it cuts completely through
 
     mesh_name = f"_ISO_PocketCutters_{int(round(width*1e6))}_{int(round(spacing*1e6))}"
