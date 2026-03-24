@@ -1,6 +1,6 @@
 import bpy
-import bmesh
 import random
+from .primitives import create_object_from_mesh, get_or_create_plane_mesh_xz
 
 # ---------------------------------------------------------------------------
 # Shipping company brand registry
@@ -106,24 +106,10 @@ def create_logo_plane(name, width, height):
     Tagged ``is_logo_decal = True`` so the generic material loop skips it;
     the brand material is assigned by the caller immediately after creation.
     """
-    mesh = bpy.data.meshes.new(name)
-    obj  = bpy.data.objects.new(name, mesh)
-
-    hw = width  * 0.5
-    hh = height * 0.5
-
-    bm = bmesh.new()
-    verts = [
-        bm.verts.new((-hw, 0.0, -hh)),
-        bm.verts.new(( hw, 0.0, -hh)),
-        bm.verts.new(( hw, 0.0,  hh)),
-        bm.verts.new((-hw, 0.0,  hh)),
-    ]
-    bm.faces.new(verts)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(mesh)
-    bm.free()
-
-    obj["is_container_part"] = True
-    obj["is_logo_decal"]     = True
-    return obj
+    mesh = get_or_create_plane_mesh_xz(width, height, keep=True)
+    return create_object_from_mesh(
+        name,
+        mesh,
+        tag_container_part=True,
+        extra_props={"is_logo_decal": True},
+    )

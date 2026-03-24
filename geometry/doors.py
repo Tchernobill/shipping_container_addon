@@ -40,6 +40,8 @@ import bmesh
 import math
 import mathutils
 
+from .primitives import append_box, create_object_from_mesh
+
 # ── Physical constants (metres) ───────────────────────────────────────────────
 FRAME_T = 0.150   # top / bottom rail height (Z)
 FRAME_S = 0.100   # left / right stile width (X)
@@ -51,7 +53,9 @@ CORR_DEPTH   = 0.045                               # recess depth from frame fac
 
 LEAF_T     = 0.060   # total door leaf thickness (Y axis)
 
-HINGE_H    = 0.080   # single hinge plate height
+HINGE_D    = 0.040   # hinge cylinder diameter
+HINGE_R    = HINGE_D * 0.5
+HINGE_H    = 0.130   # hinge cylinder height (Z axis)
 HINGE_GAP  = 0.700   # centre-to-centre hinge spacing
 NUM_HINGES = 4
 
@@ -97,11 +101,306 @@ def _make_obj(name, is_hardware=False):
     return obj, mesh
 
 
-def _hinge_z_positions(door_height):
-    """Return Z of the *bottom* of each hinge, NUM_HINGES total, centred on door."""
-    span    = (NUM_HINGES - 1) * HINGE_GAP
-    z_start = max(0.0, (door_height - span) * 0.5)
-    return [z_start + i * HINGE_GAP for i in range(NUM_HINGES)]
+def _q(v, step=1.0e-6):
+    return int(round(float(v) / step))
+
+
+def _door_panel_mesh_name(width, height, n_corr, is_left):
+    side = "L" if is_left else "R"
+    return f"ISO_DoorPanel_{side}_{_q(width)}_{_q(height)}_{int(n_corr)}_v1"
+
+
+def _build_door_panel_mesh_data(width, height, num_corrugations):
+    """Return (verts, faces) for the *left* door panel in canonical space."""
+    verts = []
+    faces = []
+
+    dt = LEAF_T
+
+    # Center panel area in door-local coordinates
+    px0     = FRAME_S
+    px1     = width  - FRAME_S
+    pz0     = FRAME_T
+    pz1     = height - FRAME_T
+    panel_w = px1 - px0
+    panel_h = pz1 - pz0
+
+    # ── Perimeter frame boxes ────────────────────────────────────────────────
+    # Bottom rail (full door width)
+    append_box(
+        verts,
+        faces,
+        center=(width * 0.5, dt * 0.5, FRAME_T * 0.5),
+        size=(width, dt, FRAME_T),
+    )
+    # Top rail
+    append_box(
+        verts,
+        faces,
+        center=(width * 0.5, dt * 0.5, height - FRAME_T * 0.5),
+        size=(width, dt, FRAME_T),
+    )
+    # Left stile (hinge side)
+    append_box(
+        verts,
+        faces,
+        center=(FRAME_S * 0.5, dt * 0.5, pz0 + panel_h * 0.5),
+        size=(FRAME_S, dt, panel_h),
+    )
+    # Right stile (closing edge)
+    append_box(
+        verts,
+        faces,
+        center=(width - FRAME_S * 0.5, dt * 0.5, pz0 + panel_h * 0.5),
+        size=(FRAME_S, dt, panel_h),
+    )
+
+    # ── Corrugated center panel volume ───────────────────────────────────────
+    if panel_w > 0.020 and panel_h > 0.020:
+        fwd = _corr_profile(pz0, panel_h, num_corrugations)
+        loop = fwd + [
+            (fwd[-1][0], LEAF_T),   # back-top corner
+            (fwd[0][0],  LEAF_T),   # back-bottom corner
+        ]
+        n = len(loop)
+
+        base_left = len(verts)
+        # left face at x=px0, right face at x=px1
+        for z, y in loop:
+            verts.append((px0, y, z))
+        for z, y in loop:
+            verts.append((px1, y, z))
+
+        # side-wall quads
+        for i in range(n):
+            j = (i + 1) % n
+            faces.append(
+                (
+                    base_left + i,
+                    base_left + n + i,
+                    base_left + n + j,
+                    base_left + j,
+                )
+            )
+
+        # end caps (ngons)
+        faces.append(tuple(reversed(range(base_left, base_left + n))))  # normal -X
+        faces.append(tuple(range(base_left + n, base_left + 2 * n)))    # normal +X
+
+    return verts, faces
+
+
+def _get_or_create_door_panel_mesh(width, height, num_corrugations, is_left):
+    mesh_name = _door_panel_mesh_name(width, height, num_corrugations, is_left)
+    mesh = bpy.data.meshes.get(mesh_name)
+    if mesh is not None:
+        return mesh
+
+    verts, faces = _build_door_panel_mesh_data(width, height, num_corrugations)
+
+    if not is_left:
+        # Mirror through X=0 and reverse face winding to preserve outward normals.
+        verts = [(-x, y, z) for (x, y, z) in verts]
+        faces = [tuple(reversed(f)) for f in faces]
+
+    mesh = bpy.data.meshes.new(mesh_name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    mesh.use_fake_user = True
+    return mesh
+
+
+def _door_hardware_mesh_name(width, height, is_left, floor_z_offset, num_corrugations):
+    side = "L" if is_left else "R"
+    return (
+        f"ISO_DoorHardware_{side}_{_q(width)}_{_q(height)}_{_q(floor_z_offset)}_"
+        f"{int(num_corrugations)}_v1"
+    )
+
+
+def _get_or_create_door_hardware_mesh(width, height, is_left, floor_z_offset, num_corrugations):
+    mesh_name = _door_hardware_mesh_name(width, height, is_left, floor_z_offset, num_corrugations)
+    mesh = bpy.data.meshes.get(mesh_name)
+    if mesh is not None:
+        return mesh
+
+    mesh = bpy.data.meshes.new(mesh_name)
+    bm = bmesh.new()
+
+    bar_r   = 0.016
+    bar_ext = 0.040
+    y_bar   = -0.022   # bars sit 22 mm proud of the outer door face
+    cam_r, cam_t  = 0.032, 0.018
+    chw, chh, chd = 0.080, 0.058, 0.036
+
+    bar_x1 = max(0.010, width - BAR1_EDGE)
+    bar_x2 = max(0.010, bar_x1 - BAR2_OFFSET)
+    bar_xs = [bx for bx in (bar_x1, bar_x2) if 0.010 < bx < width - 0.010]
+
+    # Z-centres of flat door background sections — used for bracket / handle snapping
+    gap_zs = get_corrugation_gap_centers(FRAME_T, height - 2 * FRAME_T, num_corrugations)
+
+    for bx in bar_xs:
+        # ── Locking rod ───────────────────────────────────────────────────────
+        _cyl(bm, bar_r, height + 2 * bar_ext,
+             cx=bx, cy=y_bar, cz=height * 0.5, axis='Z', segs=10)
+
+        # ── Guide brackets — cylinder collars, one per gap centre ───────────
+        for gz in gap_zs:
+            _cyl(bm, 0.028, 0.060,
+                 cx=bx, cy=y_bar, cz=gz, axis='Z', segs=12)
+            _b(bm, 0.010, 0.014, 0.020,
+               cx=bx, cy=-0.007, cz=gz)
+
+        # ── Cam disc + cam holder at top and bottom of each bar ───────────────
+        for cz_cam in (0.030, height - 0.030):
+            _cyl(bm, cam_r, cam_t,
+                 cx=bx, cy=y_bar, cz=cz_cam, axis='Y', segs=10)
+            _b(bm, chw, chd, chh, cx=bx, cy=y_bar - chd * 0.5, cz=cz_cam)
+
+    # ── Handle assembly — snapped to nearest gap centre ───────────────────────
+    if bar_xs and gap_zs:
+        bx = bar_xs[0]
+        target_hz = max(0.050, HANDLE_HEIGHT - floor_z_offset)
+        hz = min(gap_zs, key=lambda z: abs(z - target_hz))
+        hz = max(FRAME_T + 0.050, min(hz, height - FRAME_T - 0.050))
+
+        _b(bm, 0.120, 0.012, 0.260, cx=bx, cy=y_bar - 0.006, cz=hz)
+        _cyl(bm, 0.014, 0.115,
+             cx=bx, cy=y_bar - 0.065, cz=hz, axis='Y', segs=8)
+        for dz in (-0.080, 0.080):
+            _b(bm, 0.020, 0.060, 0.018, cx=bx, cy=y_bar - 0.034, cz=hz + dz)
+        _b(bm, 0.062, 0.032, 0.065, cx=bx, cy=y_bar - 0.016, cz=hz - 0.100)
+
+    if not is_left:
+        _mirror(bm)
+    if bm.faces:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(mesh)
+    bm.free()
+
+    mesh.use_fake_user = True
+    return mesh
+
+
+def _hinge_z_positions(door_height, hinge_count=NUM_HINGES, hinge_height=HINGE_H):
+    """Return Z of the *center* of each hinge, hinge_count total.
+
+    Hinges are distributed evenly from 0.05 m above the door bottom to 0.05 m
+    below the door top, independent of hinge_count (3–5 via UI).
+
+    Note: the 0.05 m margin is measured to the hinge *pivot/center* (not the
+    cylinder extents), matching the door-instancing expectation.
+    """
+    hinge_count = max(1, int(hinge_count))
+    if hinge_count == 1:
+        return [door_height * 0.5]
+    margin = 0.05
+    z0 = margin
+    z1 = (door_height - margin)
+    if z1 <= z0:
+        return [door_height * 0.5]
+    step = (z1 - z0) / (hinge_count - 1)
+    return [z0 + i * step for i in range(hinge_count)]
+
+
+def _get_or_create_hinge_master_mesh():
+    """Create (or reuse) the master hinge mesh used by per-door instances."""
+    mesh_name = "ISO_Door_Hinge_Master_v2"
+    if mesh_name in bpy.data.meshes:
+        return bpy.data.meshes[mesh_name]
+
+    mesh = bpy.data.meshes.new(mesh_name)
+    bm = bmesh.new()
+
+    def _scale_about_point(verts, vec, center):
+        """Scale verts about an arbitrary center (bmesh.ops.scale has no center arg)."""
+        if not verts:
+            return
+        bmesh.ops.translate(bm, verts=verts, vec=(-center.x, -center.y, -center.z))
+        bmesh.ops.scale(bm, verts=verts, vec=vec)
+        bmesh.ops.translate(bm, verts=verts, vec=(center.x, center.y, center.z))
+
+    bmesh.ops.create_cone(
+        bm,
+        cap_ends=True,
+        cap_tris=False,
+        segments=16,
+        radius1=HINGE_R,
+        radius2=HINGE_R,
+        depth=HINGE_H,
+    )
+
+    # Select the 4 side faces with the strongest +X normal.
+    side_faces = [f for f in bm.faces if abs(f.normal.z) < 0.5]
+    side_faces.sort(key=lambda f: f.normal.x, reverse=True)
+    target_faces = side_faces[:4]
+
+    if target_faces:
+        # 1) Extrude +X by 0.06, angled 15° toward +Y, then scale in by 10% in Z.
+        res1 = bmesh.ops.extrude_face_region(bm, geom=target_faces)
+        verts1 = [e for e in res1["geom"] if isinstance(e, bmesh.types.BMVert)]
+
+        dy = math.tan(math.radians(15.0)) * 0.06
+        bmesh.ops.translate(bm, verts=verts1, vec=(0.06, dy, 0.0))
+
+        if verts1:
+            cent1 = mathutils.Vector((0.0, 0.0, 0.0))
+            for v in verts1:
+                cent1 += v.co
+            cent1 /= len(verts1)
+            _scale_about_point(verts1, (0.5, 0.25, 0.9), cent1)
+
+        # 2) Extrude the new most +X faces by +X 0.1, then scale in by 40% in Z.
+        side_faces2 = [f for f in bm.faces if abs(f.normal.z) < 0.5]
+        side_faces2.sort(key=lambda f: f.calc_center_median().x, reverse=True)
+        target_faces2 = side_faces2[:4]
+
+        if target_faces2:
+            res2 = bmesh.ops.extrude_face_region(bm, geom=target_faces2)
+            verts2 = [e for e in res2["geom"] if isinstance(e, bmesh.types.BMVert)]
+            bmesh.ops.translate(bm, verts=verts2, vec=(0.10, 0.0, 0.0))
+
+            if verts2:
+                cent2 = mathutils.Vector((0.0, 0.0, 0.0))
+                for v in verts2:
+                    cent2 += v.co
+                cent2 /= len(verts2)
+                _scale_about_point(verts2, (0.75, 0.5, 0.6), cent2)
+
+        # 3) Small bevel on the whole hinge.
+        if bm.edges:
+            bmesh.ops.bevel(
+                bm,
+                geom=list(bm.edges),
+                offset=0.002,
+                segments=2,
+                profile=0.5,
+                affect='EDGES',
+                clamp_overlap=True,
+            )
+
+    if bm.faces:
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+    bm.to_mesh(mesh)
+    bm.free()
+    return mesh
+
+
+def get_hinge_master_bounds():
+    """Return (min_vec, max_vec) of the hinge master mesh in its local space."""
+    mesh = _get_or_create_hinge_master_mesh()
+    if not mesh.vertices:
+        return (mathutils.Vector((0.0, 0.0, 0.0)), mathutils.Vector((0.0, 0.0, 0.0)))
+
+    min_v = mathutils.Vector((1.0e9, 1.0e9, 1.0e9))
+    max_v = mathutils.Vector((-1.0e9, -1.0e9, -1.0e9))
+    for v in mesh.vertices:
+        co = v.co
+        min_v.x = min(min_v.x, co.x); min_v.y = min(min_v.y, co.y); min_v.z = min(min_v.z, co.z)
+        max_v.x = max(max_v.x, co.x); max_v.y = max(max_v.y, co.y); max_v.z = max(max_v.z, co.z)
+    return (min_v, max_v)
 
 
 # ── Corrugation profile builder ────────────────────────────────────────────────
@@ -227,9 +526,9 @@ def _add_corrugated_strip(bm, x0, x1, z0, panel_h, n_corr):
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-def get_hinge_positions(door_height):
+def get_hinge_positions(door_height, hinge_count=NUM_HINGES):
     """Exposed wrapper: used by rebuild.py to position hinge-recess boolean cuts."""
-    return _hinge_z_positions(door_height)
+    return _hinge_z_positions(door_height, hinge_count=hinge_count, hinge_height=HINGE_H)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -255,91 +554,39 @@ def create_door_panel(name, width, height, is_left, num_corrugations=4):
         Peaks are flush with the frame face (y = 0).
         Background sits at y = 0.045 (recessed into the door).
     """
-    obj, mesh = _make_obj(name)
-    bm = bmesh.new()
-
-    dt = LEAF_T   # door leaf thickness along Y
-
-    # Center panel area in door-local coordinates
-    px0     = FRAME_S
-    px1     = width  - FRAME_S
-    pz0     = FRAME_T
-    pz1     = height - FRAME_T
-    panel_w = px1 - px0
-    panel_h = pz1 - pz0
-
-    # ── Perimeter frame boxes ──────────────────────────────────────────────────
-    # Bottom rail (full door width)
-    _b(bm, width,   dt, FRAME_T,
-       cx=width * 0.5,          cy=dt * 0.5, cz=FRAME_T * 0.5)
-    # Top rail
-    _b(bm, width,   dt, FRAME_T,
-       cx=width * 0.5,          cy=dt * 0.5, cz=height - FRAME_T * 0.5)
-    # Left stile (hinge side)
-    _b(bm, FRAME_S, dt, panel_h,
-       cx=FRAME_S * 0.5,        cy=dt * 0.5, cz=pz0 + panel_h * 0.5)
-    # Right stile (closing edge)
-    _b(bm, FRAME_S, dt, panel_h,
-       cx=width - FRAME_S * 0.5, cy=dt * 0.5, cz=pz0 + panel_h * 0.5)
-
-    # ── Corrugated center panel (ribs run horizontally) ───────────────────────
-    if panel_w > 0.020 and panel_h > 0.020:
-        _add_corrugated_strip(bm, px0, px1, pz0, panel_h, num_corrugations)
-
-    # ── Mirror for right door ──────────────────────────────────────────────────
-    if not is_left:
-        _mirror(bm)
-
-    if bm.faces:
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-
-    bm.to_mesh(mesh)
-    bm.free()
-    return obj
+    mesh = _get_or_create_door_panel_mesh(width, height, num_corrugations, is_left)
+    return create_object_from_mesh(name, mesh, tag_container_part=True)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-def create_door_hinges(name, width, height, is_left):
-    """Four hinge assemblies, 80 mm tall, 700 mm centre-to-centre, vertically
-    centred on the door height.
+def create_door_hinges(name, width, height, is_left, hinge_count=NUM_HINGES):
+    """Instanced hinges with cylinder pivot.
 
-    Each assembly:
-      • Door leaf  – plate +55 mm in X onto door face
-      • Post leaf  – plate −45 mm in X into post recess
-      • Knuckles   – 3 short cylinders at the pivot axis (X = 0)
-      • Pin        – full-height cylinder through all knuckles
+    Master hinge mesh:
+      - Cylinder: Ø0.04 m, height 0.13 m, 16 sides
+      - 4 most +X faces extruded twice as specified, then lightly beveled
+
+    Returned object is an EMPTY parent containing hinge instances (MESH
+    children) so all hinges share one mesh datablock.
     """
-    obj, mesh = _make_obj(name)
-    bm = bmesh.new()
+    hinge_count = max(1, int(hinge_count))
 
-    hh      = HINGE_H
-    door_lw = 0.055
-    post_lw = 0.045
-    lt      = 0.010
-    pin_r   = 0.008
-    knk_r   = 0.014
-    y_leaf  = -lt   # hinge leaves proud of the outer door face (Y = 0)
+    parent = bpy.data.objects.new(name, None)
+    parent.empty_display_type = 'PLAIN_AXES'
+    parent.empty_display_size = 0.2
+    parent["is_container_part"] = True
 
-    for hz_bot in _hinge_z_positions(height):
-        hz = hz_bot + hh * 0.5
+    master_mesh = _get_or_create_hinge_master_mesh()
 
-        _b(bm, door_lw, lt, hh, cx=door_lw * 0.5,  cy=y_leaf - lt * 0.5, cz=hz)
-        _b(bm, post_lw, lt, hh, cx=-post_lw * 0.5, cy=y_leaf - lt * 0.5, cz=hz)
+    for idx, hz_ctr in enumerate(_hinge_z_positions(height, hinge_count=hinge_count, hinge_height=HINGE_H)):
+        inst = bpy.data.objects.new(f"{name}_{idx:02d}", master_mesh)
+        inst["is_container_part"] = True
+        inst.location = (0.0, 0.0, hz_ctr)
+        if not is_left:
+            inst.scale = (-1.0, 1.0, 1.0)
+        inst.parent = parent
 
-        for kz_off in (-hh * 0.33, 0.0, hh * 0.33):
-            _cyl(bm, knk_r, lt * 2.5,
-                 cx=0.0, cy=y_leaf - lt * 0.5, cz=hz + kz_off, axis='Z')
-
-        _cyl(bm, pin_r, hh * 0.90,
-             cx=0.0, cy=y_leaf - lt * 0.5, cz=hz, axis='Z')
-
-    if not is_left:
-        _mirror(bm)
-    if bm.faces:
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(mesh)
-    bm.free()
-    return obj
+    return parent
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -357,66 +604,10 @@ def create_locking_hardware(name, width, height, is_left, floor_z_offset=0.108, 
         bar_x1 = width − BAR1_EDGE          (170 mm from the closing edge)
         bar_x2 = bar_x1 − BAR2_OFFSET       (420 mm from bar_x1 toward hinge)
     """
-    obj, mesh = _make_obj(name, is_hardware=True)
-    bm = bmesh.new()
-
-    bar_r   = 0.016
-    bar_ext = 0.040
-    y_bar   = -0.022   # bars sit 22 mm proud of the outer door face
-    cam_r, cam_t  = 0.032, 0.018
-    chw, chh, chd = 0.080, 0.058, 0.036
-
-    bar_x1 = max(0.010, width - BAR1_EDGE)
-    bar_x2 = max(0.010, bar_x1 - BAR2_OFFSET)
-    bar_xs = [bx for bx in (bar_x1, bar_x2) if 0.010 < bx < width - 0.010]
-
-    # Z-centres of flat door background sections — used for bracket / handle snapping
-    gap_zs = get_corrugation_gap_centers(FRAME_T, height - 2 * FRAME_T, num_corrugations)
-
-    for bx in bar_xs:
-        # ── Locking rod ───────────────────────────────────────────────────────
-        _cyl(bm, bar_r, height + 2 * bar_ext,
-             cx=bx, cy=y_bar, cz=height * 0.5, axis='Z', segs=10)
-
-        # ── Guide brackets — cylinder collars, one per gap centre ───────────
-        # A short Z-axis cylinder forms a clamp collar encircling the bar,
-        # with a small mounting tab connecting it to the door face.
-        for gz in gap_zs:
-            # Collar: short cylinder along Z encircling the bar
-            _cyl(bm, 0.028, 0.060,
-                 cx=bx, cy=y_bar, cz=gz, axis='Z', segs=12)
-            # Mounting tab: small block from door face to collar back
-            _b(bm, 0.010, 0.014, 0.020,
-               cx=bx, cy=-0.007, cz=gz)
-
-        # ── Cam disc + cam holder at top and bottom of each bar ───────────────
-        for cz_cam in (0.030, height - 0.030):
-            _cyl(bm, cam_r, cam_t,
-                 cx=bx, cy=y_bar, cz=cz_cam, axis='Y', segs=10)
-            _b(bm, chw, chd, chh, cx=bx, cy=y_bar - chd * 0.5, cz=cz_cam)
-
-    # ── Handle assembly — snapped to nearest gap centre ───────────────────────
-    if bar_xs and gap_zs:
-        bx = bar_xs[0]
-        target_hz = max(0.050, HANDLE_HEIGHT - floor_z_offset)
-        hz = min(gap_zs, key=lambda z: abs(z - target_hz))
-        hz = max(FRAME_T + 0.050, min(hz, height - FRAME_T - 0.050))
-
-        # Mounting plate
-        _b(bm, 0.120, 0.012, 0.260, cx=bx, cy=y_bar - 0.006, cz=hz)
-        # Grip rod (horizontal cylinder, the user grabs)
-        _cyl(bm, 0.014, 0.115,
-             cx=bx, cy=y_bar - 0.065, cz=hz, axis='Y', segs=8)
-        # Two short arms connecting plate to grip rod
-        for dz in (-0.080, 0.080):
-            _b(bm, 0.020, 0.060, 0.018, cx=bx, cy=y_bar - 0.034, cz=hz + dz)
-        # Latch body
-        _b(bm, 0.062, 0.032, 0.065, cx=bx, cy=y_bar - 0.016, cz=hz - 0.100)
-
-    if not is_left:
-        _mirror(bm)
-    if bm.faces:
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(mesh)
-    bm.free()
-    return obj
+    mesh = _get_or_create_door_hardware_mesh(width, height, is_left, floor_z_offset, num_corrugations)
+    return create_object_from_mesh(
+        name,
+        mesh,
+        tag_container_part=True,
+        extra_props={"is_hardware": True},
+    )

@@ -1,12 +1,6 @@
 import bpy
-import bmesh
 
-
-def _make_face(bm, verts):
-    try:
-        return bm.faces.new(verts)
-    except ValueError:
-        return None
+from .primitives import create_object_from_mesh
 
 
 def _build_official_side_profile_points(width, depth):
@@ -73,46 +67,44 @@ def _build_official_side_profile_points(width, depth):
 
 
 
-def _create_corrugated_panel_legacy(bm, width, height, rib_spacing, rib_depth):
+def _create_corrugated_panel_legacy_points(width, rib_spacing, rib_depth):
     """Legacy trapezoidal corrugation (kept for backwards compatibility)."""
     # Calculate exact number of ribs to fit the panel width perfectly
     num_ribs = max(1, int(width / rib_spacing))
     actual_spacing = width / num_ribs
 
-    bottom_y = -height * 0.5
-    top_y = height * 0.5
-
-    # Generate the bottom profile (Local Y = -height/2)
-    bottom_verts = []
+    # Generate the profile points (x, z) along the panel width.
+    pts = []
     for i in range(num_ribs):
         x_start = -width/2 + i * actual_spacing
 
         # 4 points per trapezoidal wave
-        bottom_verts.append(bm.verts.new((x_start, bottom_y, -rib_depth/2)))
-        bottom_verts.append(bm.verts.new((x_start + actual_spacing * 0.25, bottom_y, rib_depth/2)))
-        bottom_verts.append(bm.verts.new((x_start + actual_spacing * 0.75, bottom_y, rib_depth/2)))
+        pts.append((x_start, -rib_depth / 2))
+        pts.append((x_start + actual_spacing * 0.25, rib_depth / 2))
+        pts.append((x_start + actual_spacing * 0.75, rib_depth / 2))
 
     # Cap the end of the final wave
-    bottom_verts.append(bm.verts.new((width/2, bottom_y, -rib_depth/2)))
-
-    # Generate the top profile (Local Y = height/2)
-    top_verts = [bm.verts.new((bv.co.x, top_y, bv.co.z)) for bv in bottom_verts]
-
-    # Bridge the profiles with faces
-    for i in range(len(bottom_verts) - 1):
-        _make_face(bm, (bottom_verts[i], bottom_verts[i+1], top_verts[i+1], top_verts[i]))
+    pts.append((width / 2, -rib_depth / 2))
+    return pts
 
 
-def _create_corrugated_panel_official_side(bm, width, height, depth):
-    """Official trapezoidal side corrugation (real ISO spec)."""
-    pts = _build_official_side_profile_points(width, depth)
+def _build_panel_verts_faces_from_profile(pts, height):
+    """Convert a list of (x, z) profile points into panel verts/faces."""
+    if len(pts) < 2:
+        return [], []
+
     bottom_y = -height * 0.5
     top_y = height * 0.5
-    bottom_verts = [bm.verts.new((x, bottom_y, z)) for x, z in pts]
-    top_verts = [bm.verts.new((x, top_y, z)) for x, z in pts]
 
-    for i in range(len(bottom_verts) - 1):
-        _make_face(bm, (bottom_verts[i], bottom_verts[i+1], top_verts[i+1], top_verts[i]))
+    verts = []
+    for x, z in pts:
+        verts.append((x, bottom_y, z))
+    for x, z in pts:
+        verts.append((x, top_y, z))
+
+    n = len(pts)
+    faces = [(i, i + 1, n + i + 1, n + i) for i in range(n - 1)]
+    return verts, faces
 
 
 def create_corrugated_panel(
@@ -136,23 +128,27 @@ def create_corrugated_panel(
     - Y: panel height
     - Z: corrugation depth (outward = +Z)
     """
-    mesh = bpy.data.meshes.new(name)
-    obj = bpy.data.objects.new(name, mesh)
-    bm = bmesh.new()
-
     if profile == "LEGACY":
-        _create_corrugated_panel_legacy(bm, width, height, rib_spacing, rib_depth)
+        pts = _create_corrugated_panel_legacy_points(width, rib_spacing, rib_depth)
     else:
-        _create_corrugated_panel_official_side(bm, width, height, corrugation_depth)
+        pts = _build_official_side_profile_points(width, corrugation_depth)
 
-    if bm.faces:
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh_name = (
+        f"_ISO_CorrPanel_{profile}_{int(round(width*1e6))}_{int(round(height*1e6))}_"
+        f"{int(round(corrugation_depth*1e6))}_{int(round(rib_spacing*1e6))}_{int(round(rib_depth*1e6))}"
+    )
+    mesh = bpy.data.meshes.get(mesh_name)
+    if mesh is None:
+        verts, faces = _build_panel_verts_faces_from_profile(pts, height)
+        mesh = bpy.data.meshes.new(mesh_name)
+        mesh.from_pydata(verts, [], faces)
+        mesh.update()
+        mesh.use_fake_user = True
 
-    bm.to_mesh(mesh)
-    bm.free()
-
-    obj.location = location
-    obj.rotation_euler = rotation
-    obj["is_container_part"] = True
-
-    return obj
+    return create_object_from_mesh(
+        name,
+        mesh,
+        location=location,
+        rotation=rotation,
+        tag_container_part=True,
+    )

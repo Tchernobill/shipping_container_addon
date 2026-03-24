@@ -1,10 +1,10 @@
 bl_info = {
     "name": "Procedural ISO Shipping Container",
-    "author": "AI Engineer",
+    "author": "Yan + AI",
     "version": (1, 10, 0),
-    "blender": (5, 0, 0),
+    "blender": (5, 1, 0),
     "location": "View3D > Add > Mesh",
-    "description": "Generates procedural ISO-668 compliant shipping containers",
+    "description": "Generates procedural ISO standards compliant shipping containers",
     "category": "Add Mesh",
 }
 

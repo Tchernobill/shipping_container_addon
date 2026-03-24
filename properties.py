@@ -96,6 +96,15 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         update=update_container_rebuild,
     ) # type: ignore
 
+    door_hinge_count: bpy.props.IntProperty(
+        name="Hinges",
+        description="Number of hinge assemblies per door (ISO style).",
+        default=4,
+        min=3,
+        max=5,
+        update=update_container_rebuild,
+    ) # type: ignore
+
     # ── Panel visibility toggles ───────────────────────────────────────────────
     ui_parts_expanded: bpy.props.BoolProperty(
         name="Parts Toggles",

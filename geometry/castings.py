@@ -24,7 +24,7 @@ def create_pill_cutter(name, length, width, depth, axis):
                 if v.co.x > 0.001: v.co.x += stretch
                 elif v.co.x < -0.001: v.co.x -= stretch
             elif axis == 'X': 
-                if v.co.x > 0.001: v.co.x += stretch # if v.co.y > 0.001: v.co.y += stretch
+                if v.co.x > 0.001: v.co.x += stretch
                 elif v.co.y < -0.001: v.co.y -= stretch
                 
     # Rotate to point along the correct axis
@@ -45,7 +45,7 @@ def get_or_create_master_casting_mesh(context=None):
     if mesh_name in bpy.data.meshes:
         return bpy.data.meshes[mesh_name]
         
-    # ISO 1161 Dimensions
+    # ISO 1161 Casting corner dimensions
     cw = 0.162 
     cl = 0.178 
     ch = 0.118 

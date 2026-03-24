@@ -19,8 +19,8 @@ from ..geometry.roof import create_roof_bows
 from ..geometry.floor import (
     create_floor_cross_members,
     create_wooden_floor,
-    create_forklift_pocket_cutters,
     create_forklift_pocket_tubes,
+    create_side_rail_with_forklift_pockets,
 )
 from ..geometry.decals import (
     generate_container_id,
@@ -99,12 +99,15 @@ def _apply_hinge_recesses(post_obj, col, hinge_z_positions_world,
     """Boolean-cut rectangular slots into a front post to accept hinge leaves.
 
     post_obj                  – the post mesh object (already linked)
-    hinge_z_positions_world   – list of world-Z values for the *bottom* of each hinge
+    hinge_z_positions_world   – list of world-Z values for the *centre* of each hinge
     pivot_x_world             – world X of the hinge pivot axis
     post_cy_world             – world Y centre of the front posts
     x_sign                    – +1 (left post, recess opens toward +X)
                                 −1 (right post, recess opens toward −X)
     """
+    # NOTE: This function is currently unused for the front posts.
+    # Front posts are now built as a cube assembly with hinge gaps instead of
+    # being boolean-cut. Kept for backwards compatibility / future reuse.
     slot_depth = 0.050
     slot_y_ext = 0.070
     slot_z     = HINGE_H + 0.004
@@ -113,8 +116,7 @@ def _apply_hinge_recesses(post_obj, col, hinge_z_positions_world,
     cutter_obj  = bpy.data.objects.new("_HingeRecess_Cutter", cutter_mesh)
     cbm = bmesh.new()
 
-    for hz_bot_world in hinge_z_positions_world:
-        hz_ctr_world = hz_bot_world + slot_z * 0.5
+    for hz_ctr_world in hinge_z_positions_world:
         slot_cx = pivot_x_world - x_sign * (slot_depth * 0.5)
         g = bmesh.ops.create_cube(cbm, size=1.0)
         bmesh.ops.scale(cbm,     verts=g['verts'], vec=(slot_depth + 0.002, slot_y_ext, slot_z))
@@ -250,15 +252,90 @@ def rebuild_container(root_obj, context=None):
             casting.parent = root_obj
 
     # ── POSTS ─────────────────────────────────────────────────────────────────
-    posts = [
-        ("Front_Left_Post",  (cx,     cy,     H / 2)),
-        ("Front_Right_Post", (W - cx, cy,     H / 2)),
+    created_posts = {}
+
+    def _clamp(v, lo, hi):
+        return max(lo, min(hi, v))
+
+    def _create_front_post_assembly(name, hinge_axis_x, hinge_axis_y, hinge_centers_world_z, *,
+                                    is_left_side):
+        """Front post replacement: plate + rib segments with hinge gaps."""
+        assembly = bpy.data.objects.new(name, None)
+        assembly.empty_display_type = 'PLAIN_AXES'
+        assembly.empty_display_size = 0.4
+        assembly["is_container_part"] = True
+        col.objects.link(assembly)
+        assembly.parent = root_obj
+
+        # Plate behind the hinges
+        plate_x = 0.100
+        plate_y = 0.050
+        plate_cx = _clamp(hinge_axis_x, plate_x * 0.5, W - plate_x * 0.5)
+        plate_cy = _clamp(hinge_axis_y, plate_y * 0.5, L - plate_y * 0.5)
+        plate = create_box(f"{name}_Plate", plate_x, plate_y, post_h, (plate_cx, plate_cy, H / 2))
+        col.objects.link(plate)
+        plate.parent = assembly
+
+        # Reinforcement rib running along the plate (Z), except where hinges are.
+        # NOTE: User requested "0.45 by 0.45" — interpreted as 0.045 m (45 mm).
+        rib_x = 0.045
+        rib_y = 0.045
+
+        plate_min_x = plate_cx - plate_x * 0.5
+        plate_max_x = plate_cx + plate_x * 0.5
+        plate_min_y = plate_cy # - plate_y * 0.5
+
+        if is_left_side:
+            rib_cx = plate_min_x + rib_x * 0.5
+        else:
+            rib_cx = plate_max_x - rib_x * 0.5
+        rib_cy = plate_min_y - rib_y * 0.5
+
+        z0 = ch
+        z1 = H - ch
+
+        gap_half = (HINGE_H * 0.5) + 0.006
+        gaps = []
+        for zc in hinge_centers_world_z:
+            gs = max(z0, zc - gap_half)
+            ge = min(z1, zc + gap_half)
+            if ge > gs:
+                gaps.append((gs, ge))
+        gaps.sort()
+
+        # Merge overlapping gaps
+        merged = []
+        for gs, ge in gaps:
+            if not merged or gs > merged[-1][1]:
+                merged.append([gs, ge])
+            else:
+                merged[-1][1] = max(merged[-1][1], ge)
+
+        def _add_segment(zs, ze, idx):
+            seg_h = ze - zs
+            if seg_h <= 0.005:
+                return
+            seg_cz = (zs + ze) * 0.5
+            seg = create_box(f"{name}_Rib_{idx:02d}", rib_x, rib_y, seg_h, (rib_cx, rib_cy, seg_cz))
+            col.objects.link(seg)
+            seg.parent = assembly
+
+        cur = z0
+        seg_i = 0
+        for gs, ge in merged:
+            if gs > cur:
+                _add_segment(cur, gs, seg_i); seg_i += 1
+            cur = max(cur, ge)
+        if cur < z1:
+            _add_segment(cur, z1, seg_i)
+
+        return assembly
+
+    # Back posts remain as a single box for now
+    for name, loc in [
         ("Back_Left_Post",   (cx,     L - cy, H / 2)),
         ("Back_Right_Post",  (W - cx, L - cy, H / 2)),
-    ]
-
-    created_posts = {}
-    for name, loc in posts:
+    ]:
         if post_conditions.get(name, lambda: False)():
             post = create_box(name, pw, pw, post_h, loc)
             col.objects.link(post)
@@ -272,92 +349,67 @@ def rebuild_container(root_obj, context=None):
 
     door_floor_z = cz + rh / 2
 
+    hinge_off_y = 0.027
+    hinge_off_x = 0.077
+
+    hinge_z_world = []
     if props.show_front_panel:
         door_h = panel_h
-        hinge_z_local = get_hinge_positions(door_h)
+        hinge_z_local = get_hinge_positions(door_h, hinge_count=props.door_hinge_count)
         hinge_z_world = [door_floor_z + z for z in hinge_z_local]
 
-        if props.show_left_door and "Front_Left_Post" in created_posts:
-            _apply_hinge_recesses(
-                post_obj                = created_posts["Front_Left_Post"],
-                col                     = col,
-                hinge_z_positions_world = hinge_z_world,
-                pivot_x_world           = cx + pw / 2,
-                post_cy_world           = cy,
-                x_sign                  = +1,
-                context                 = context,
+    if post_conditions.get("Front_Left_Post", lambda: False)():
+        fl_axis_x = (cx + pw / 2) - hinge_off_x
+        fl_axis_y = cy - hinge_off_y
+        created_posts["Front_Left_Post"] = _create_front_post_assembly(
+            "Front_Left_Post", fl_axis_x, fl_axis_y, hinge_z_world, is_left_side=True)
+
+    if post_conditions.get("Front_Right_Post", lambda: False)():
+        fr_axis_x = (W - cx - pw / 2) + hinge_off_x
+        fr_axis_y = cy - hinge_off_y
+        created_posts["Front_Right_Post"] = _create_front_post_assembly(
+            "Front_Right_Post", fr_axis_x, fr_axis_y, hinge_z_world, is_left_side=False)
+
+    # ── FRONT / BACK RAILS ────────────────────────────────────────────────
+    fb_rail_len = W - (2 * cw)
+    fb_rails = [
+        ("Front_Bottom_Rail", (W / 2, cy,     cz)),
+        ("Front_Top_Rail",    (W / 2, cy,     H - cz)),
+        ("Back_Bottom_Rail",  (W / 2, L - cy, cz)),
+        ("Back_Top_Rail",     (W / 2, L - cy, H - cz)),
+    ]
+    for name, loc in fb_rails:
+        if fb_rail_conditions.get(name, lambda: False)():
+            rail = create_box(name, fb_rail_len, pw, rh, loc)
+            col.objects.link(rail)
+            rail.parent = root_obj
+
+    # ── SIDE RAILS ────────────────────────────────────────────────────────
+    side_rail_len = L - (2 * cl)
+    side_rails = [
+        ("Left_Bottom_Rail",  (cx,     L / 2, cz)),
+        ("Left_Top_Rail",     (cx,     L / 2, H - cz)),
+        ("Right_Bottom_Rail", (W - cx, L / 2, cz)),
+        ("Right_Top_Rail",    (W - cx, L / 2, H - cz)),
+    ]
+    for name, loc in side_rails:
+        if not side_rail_conditions.get(name, lambda: False)():
+            continue
+
+        if "Bottom" in name:
+            rail = create_side_rail_with_forklift_pockets(
+                name,
+                pw,
+                side_rail_len,
+                rh,
+                loc,
+                context=context,
             )
+        else:
+            rail = create_box(name, pw, side_rail_len, rh, loc)
 
-        if props.show_right_door and "Front_Right_Post" in created_posts:
-            _apply_hinge_recesses(
-                post_obj                = created_posts["Front_Right_Post"],
-                col                     = col,
-                hinge_z_positions_world = hinge_z_world,
-                pivot_x_world           = W - cx - pw / 2,
-                post_cy_world           = cy,
-                x_sign                  = -1,
-                context                 = context,
-            )
-
-    # ── FORKLIFT POCKET CUTTERS ───────────────────────────────────────────────
-    any_side_bottom_rail = any(cond() for cond in [
-        side_rail_conditions["Left_Bottom_Rail"],
-        side_rail_conditions["Right_Bottom_Rail"],
-    ])
-
-    pocket_cutters = None
-    if any_side_bottom_rail:
-        pocket_cutters = create_forklift_pocket_cutters("Pocket_Cutters", W)
-        col.objects.link(pocket_cutters)
-        pocket_cutters.location = (W / 2, L / 2, cz)
-
-    try:
-        # ── FRONT / BACK RAILS ────────────────────────────────────────────────
-        fb_rail_len = W - (2 * cw)
-        fb_rails = [
-            ("Front_Bottom_Rail", (W / 2, cy,     cz)),
-            ("Front_Top_Rail",    (W / 2, cy,     H - cz)),
-            ("Back_Bottom_Rail",  (W / 2, L - cy, cz)),
-            ("Back_Top_Rail",     (W / 2, L - cy, H - cz)),
-        ]
-        for name, loc in fb_rails:
-            if fb_rail_conditions.get(name, lambda: False)():
-                rail = create_box(name, fb_rail_len, pw, rh, loc)
-                col.objects.link(rail)
-                rail.parent = root_obj
-
-        # ── SIDE RAILS ────────────────────────────────────────────────────────
-        side_rail_len = L - (2 * cl)
-        side_rails = [
-            ("Left_Bottom_Rail",  (cx,     L / 2, cz)),
-            ("Left_Top_Rail",     (cx,     L / 2, H - cz)),
-            ("Right_Bottom_Rail", (W - cx, L / 2, cz)),
-            ("Right_Top_Rail",    (W - cx, L / 2, H - cz)),
-        ]
-        for name, loc in side_rails:
-            if side_rail_conditions.get(name, lambda: False)():
-                rail = create_box(name, pw, side_rail_len, rh, loc)
-                col.objects.link(rail)
-                rail.parent = root_obj
-
-                if "Bottom" in name and pocket_cutters:
-                    mod = rail.modifiers.new(name="Forklift_Hole", type='BOOLEAN')
-                    mod.object    = pocket_cutters
-                    mod.operation = 'DIFFERENCE'
-                    mod.solver    = 'MANIFOLD'
-
-                    depsgraph = _get_depsgraph(context=context)
-                    eval_obj  = rail.evaluated_get(depsgraph)
-                    new_mesh  = bpy.data.meshes.new_from_object(eval_obj)
-                    old_mesh  = rail.data
-                    rail.data = new_mesh
-                    bpy.data.meshes.remove(old_mesh)
-                    rail.modifiers.clear()
-
-    finally:
-        if pocket_cutters is not None:
-            remove_object_and_orphan_data(pocket_cutters)
-            pocket_cutters = None
+        col.objects.link(rail)
+        rail.parent = root_obj
 
     # ── FRONT PANEL / DOORS ───────────────────────────────────────────────────
     if props.show_front_panel:
@@ -380,29 +432,44 @@ def rebuild_container(root_obj, context=None):
             left_pivot = bpy.data.objects.new("Left_Door_Pivot", None)
             left_pivot.empty_display_type  = 'ARROWS'
             left_pivot.empty_display_size  = 0.3
-            left_pivot.location            = (cx + pw / 2, cy, floor_z_off)
+            left_pivot.location            = ((cx + pw / 2) - hinge_off_x, cy - hinge_off_y, floor_z_off)
             left_pivot.rotation_euler      = (0.0, 0.0, -props.door_open_angle)
             col.objects.link(left_pivot)
             left_pivot.parent = root_obj
             left_pivot["is_container_part"] = True
 
+            # Offset ONLY the door geometry/hardware back into the opening so
+            # both doors still close correctly, while keeping the hinge axis
+            # aligned to the post corner.
+            left_door_geo = bpy.data.objects.new("Left_Door_Geo", None)
+            left_door_geo.empty_display_type = 'PLAIN_AXES'
+            left_door_geo.empty_display_size = 0.2
+            left_door_geo.location = (hinge_off_x, hinge_off_y, 0.0)
+            col.objects.link(left_door_geo)
+            left_door_geo.parent = left_pivot
+            left_door_geo["is_container_part"] = True
+
             # Door panel
             lp = create_door_panel("Left_Panel", door_w, door_h, True,
                                    num_corrugations=n_corr)
             col.objects.link(lp)
-            lp.parent = left_pivot
+            lp.parent = left_door_geo
 
             # Hinges
-            lh = create_door_hinges("Left_Hinges", door_w, door_h, True)
+            lh = create_door_hinges(
+                "Left_Hinges", door_w, door_h, True, hinge_count=props.door_hinge_count)
             col.objects.link(lh)
             lh.parent = left_pivot
+            for child in lh.children:
+                if not child.users_collection:
+                    col.objects.link(child)
 
             # Locking hardware — brackets snapped to gap centres
             hw = create_locking_hardware(
                 "Left_Hardware", door_w, door_h, True, floor_z_off,
                 num_corrugations=n_corr)
             col.objects.link(hw)
-            hw.parent = left_pivot
+            hw.parent = left_door_geo
 
             # ── Logo decal on left door ───────────────────────────────────────
             # Place in the first gap centre above the door midpoint, centred in X.
@@ -416,7 +483,7 @@ def rebuild_container(root_obj, context=None):
             logo_plane = create_logo_plane("Left_Logo_Plane", logo_pw, logo_ph)
             logo_plane.location = (cx_left, -0.001, logo_z)
             col.objects.link(logo_plane)
-            logo_plane.parent = left_pivot
+            logo_plane.parent = left_door_geo
             # Plane uses the container metal shader so it blends with the door.
             logo_plane.data.materials.append(get_or_create_container_material())
 
@@ -424,7 +491,7 @@ def rebuild_container(root_obj, context=None):
             logo_text.location       = (cx_left, -0.003, logo_z)
             logo_text.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(logo_text)
-            logo_text.parent = left_pivot
+            logo_text.parent = left_door_geo
             # Text is coloured with the company brand colour.
             logo_text.data.materials.append(brand_mat)
 
@@ -432,29 +499,41 @@ def rebuild_container(root_obj, context=None):
             right_pivot = bpy.data.objects.new("Right_Door_Pivot", None)
             right_pivot.empty_display_type  = 'ARROWS'
             right_pivot.empty_display_size  = 0.3
-            right_pivot.location            = (W - cx - pw / 2, cy, floor_z_off)
+            right_pivot.location            = ((W - cx - pw / 2) + hinge_off_x, cy - hinge_off_y, floor_z_off)
             right_pivot.rotation_euler      = (0.0, 0.0, props.door_open_angle)
             col.objects.link(right_pivot)
             right_pivot.parent = root_obj
             right_pivot["is_container_part"] = True
 
+            right_door_geo = bpy.data.objects.new("Right_Door_Geo", None)
+            right_door_geo.empty_display_type = 'PLAIN_AXES'
+            right_door_geo.empty_display_size = 0.2
+            right_door_geo.location = (-hinge_off_x, hinge_off_y, 0.0)
+            col.objects.link(right_door_geo)
+            right_door_geo.parent = right_pivot
+            right_door_geo["is_container_part"] = True
+
             # Door panel
             rp = create_door_panel("Right_Panel", door_w, door_h, False,
                                    num_corrugations=n_corr)
             col.objects.link(rp)
-            rp.parent = right_pivot
+            rp.parent = right_door_geo
 
             # Hinges
-            rh_obj = create_door_hinges("Right_Hinges", door_w, door_h, False)
+            rh_obj = create_door_hinges(
+                "Right_Hinges", door_w, door_h, False, hinge_count=props.door_hinge_count)
             col.objects.link(rh_obj)
             rh_obj.parent = right_pivot
+            for child in rh_obj.children:
+                if not child.users_collection:
+                    col.objects.link(child)
 
             # Locking hardware — brackets snapped to gap centres
             hw = create_locking_hardware(
                 "Right_Hardware", door_w, door_h, False, floor_z_off,
                 num_corrugations=n_corr)
             col.objects.link(hw)
-            hw.parent = right_pivot
+            hw.parent = right_door_geo
 
             # ── Decals on the right door — flush (Y = −0.001), centred in X ────
             # sorted_gaps is shared from the left-door block above.
@@ -473,7 +552,7 @@ def rebuild_container(root_obj, context=None):
             decal_specs.location       = (cx_right, -0.001, specs_z)
             decal_specs.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_specs)
-            decal_specs.parent = right_pivot
+            decal_specs.parent = right_door_geo
 
             # Decal_ID: next gap up from Decal_Specs, centred
             specs_idx = sorted_gaps.index(specs_z) if specs_z in sorted_gaps else -1
@@ -485,7 +564,7 @@ def rebuild_container(root_obj, context=None):
             decal_id.location       = (cx_right, -0.001, id_z)
             decal_id.rotation_euler = (math.radians(90), 0, 0)
             col.objects.link(decal_id)
-            decal_id.parent = right_pivot
+            decal_id.parent = right_door_geo
 
     # ── BACK PANEL ────────────────────────────────────────────────────────────
     if props.show_back_panel:

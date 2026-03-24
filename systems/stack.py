@@ -28,12 +28,12 @@ v2  FEATURE — Concrete base slab added as the stack root object.
 """
 
 import bpy
-import bmesh
 import math
 import random
 
 from ..utils import CONTAINER_SIZES, clear_container_children
 from .rebuild import rebuild_container
+from ..geometry.primitives import append_box, append_plane_xy, create_mesh_object
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -150,36 +150,23 @@ def _create_concrete_base(name, stack_x, stack_y, margin, thickness):
     total_x = stack_x + 2.0 * margin
     total_y = stack_y + 2.0 * margin
 
-    mesh = bpy.data.meshes.new(name)
-    obj  = bpy.data.objects.new(name, mesh)
-
-    bm = bmesh.new()
-
-    # Start with a unit cube centred at origin, scale to slab dimensions, then
-    # translate so the top face lands exactly at z=0 and the XY footprint is
-    # centred on the stack (which itself starts at x=0, y=0).
-    bmesh.ops.create_cube(bm, size=1.0)
-    bmesh.ops.scale(
-        bm,
-        vec=(total_x, total_y, thickness),
-        verts=bm.verts,
-    )
-    bmesh.ops.translate(
-        bm,
-        verts=bm.verts,
-        vec=(
-            stack_x / 2.0,       # centre horizontally on the stack X footprint
-            stack_y / 2.0,       # centre horizontally on the stack Y footprint
-            -thickness / 2.0,    # shift down so the top face is at z = 0
-        ),
+    verts = []
+    faces = []
+    append_box(
+        verts,
+        faces,
+        center=(stack_x / 2.0, stack_y / 2.0, -thickness / 2.0),
+        size=(total_x, total_y, thickness),
     )
 
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    bm.to_mesh(mesh)
-    bm.free()
-
-    obj.location = (0.0, 0.0, 0.0)   # origin at front-left-bottom of stack
-    obj["is_stack_base"] = True       # distinct tag — never confused with container parts
+    obj = create_mesh_object(
+        name,
+        verts,
+        faces,
+        location=(0.0, 0.0, 0.0),
+        tag_container_part=False,
+        extra_props={"is_stack_base": True},
+    )
     return obj
 
 
@@ -371,18 +358,20 @@ def _add_gap_fillers(parent_obj, stack_col, sw, sd, sh, W, L, H, presence_map):
     epsilon = 0.0005          # 0.5 mm
 
     def _make_filler(fname, width, height, loc, rot):
-        mesh = bpy.data.meshes.new(fname)
-        obj  = bpy.data.objects.new(fname, mesh)
-        bm   = bmesh.new()
-        bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=0.5)
-        bmesh.ops.scale(bm, vec=(width, height, 1.0), verts=bm.verts)
-        bm.to_mesh(mesh)
-        bm.free()
-        obj.location       = loc
-        obj.rotation_euler = rot
+        verts = []
+        faces = []
+        append_plane_xy(verts, faces, center=(0.0, 0.0, 0.0), size=(width, height))
+        obj = create_mesh_object(
+            fname,
+            verts,
+            faces,
+            location=loc,
+            rotation=rot,
+            tag_container_part=False,
+            extra_props={"is_stack_filler": True},
+        )
         stack_col.objects.link(obj)
         obj.parent = parent_obj          # child of concrete base
-        obj["is_stack_filler"] = True
         return obj
 
     # ── X-Junctions: visible on the Front (j=0) and Back (j=sd-1) faces ──────
