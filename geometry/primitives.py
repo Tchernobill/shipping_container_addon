@@ -1,4 +1,5 @@
 import bpy
+import bmesh
 
 
 def _q(v, step=1.0e-6):
@@ -26,6 +27,7 @@ def create_object_from_mesh(
     tag_container_part=True,
     extra_props=None,
 ):
+    ensure_world_uv(mesh)
     obj = bpy.data.objects.new(name, mesh)
     if location is not None:
         obj.location = location
@@ -39,6 +41,42 @@ def create_object_from_mesh(
         for k, v in extra_props.items():
             obj[k] = v
     return obj
+
+
+def ensure_world_uv(mesh, *, uv_name="UVMap", uv_scale=1.0):
+    """Ensure `mesh` has a UV layer with consistent world-scale texel density.
+
+    If a UV layer already exists, it is left untouched. Otherwise a simple
+    box-style planar projection is created per face using vertex coordinates.
+
+    `uv_scale` maps metres → UV units (1.0 means 1 m = 1 UV unit).
+    """
+    if mesh is None or not hasattr(mesh, "uv_layers"):
+        return
+    if len(mesh.uv_layers) > 0:
+        return
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    uv_layer = bm.loops.layers.uv.new(uv_name)
+
+    for face in bm.faces:
+        n = face.normal
+        ax, ay, az = abs(n.x), abs(n.y), abs(n.z)
+
+        for loop in face.loops:
+            co = loop.vert.co
+            if ax >= ay and ax >= az:
+                uv = (co.y * uv_scale, co.z * uv_scale)
+            elif ay >= ax and ay >= az:
+                uv = (co.x * uv_scale, co.z * uv_scale)
+            else:
+                uv = (co.x * uv_scale, co.y * uv_scale)
+            loop[uv_layer].uv = uv
+
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.update()
 
 
 def create_mesh_object(

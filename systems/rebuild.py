@@ -30,12 +30,59 @@ from ..geometry.decals import (
 from ..geometry.proxy import create_proxy_box
 from .materials import (
     get_or_create_container_material,
+    get_or_create_container_material_double_sided,
     get_or_create_wood_material,
     get_or_create_decal_material,
     get_or_create_hardware_material,
     get_or_create_proxy_material,
     get_or_create_brand_material,
 )
+
+
+def update_container_materials(root_obj):
+    """Re-assign materials on an existing container (no geometry rebuild)."""
+    if not root_obj or not hasattr(root_obj, "shipping_container"):
+        return
+    if not root_obj.shipping_container.is_container:
+        return
+
+    props = root_obj.shipping_container
+    if props.detail_level == 'LOW':
+        # Proxy uses a different material pipeline.
+        return
+
+    if getattr(props, "shader_material_mode", 'SINGLE') == 'DOUBLE':
+        metal_mat = get_or_create_container_material_double_sided()
+    else:
+        metal_mat = get_or_create_container_material()
+
+    wood_mat = get_or_create_wood_material()
+    decal_mat = get_or_create_decal_material()
+    hardware_mat = get_or_create_hardware_material()
+
+    for obj in root_obj.children_recursive:
+        if obj.type == 'MESH':
+            if obj.get("is_hardware"):
+                mat = hardware_mat
+            elif obj.get("is_logo_decal"):
+                mat = metal_mat
+            elif "Wood" in obj.name:
+                mat = wood_mat
+            else:
+                mat = metal_mat
+
+            if obj.data.materials:
+                obj.data.materials[0] = mat
+            else:
+                obj.data.materials.append(mat)
+
+        elif obj.type == 'FONT':
+            if obj.get("is_logo_decal"):
+                pass
+            elif obj.data.materials:
+                obj.data.materials[0] = decal_mat
+            else:
+                obj.data.materials.append(decal_mat)
 
 
 def _get_collection_for_root(root_obj, context=None):
@@ -204,8 +251,7 @@ def rebuild_container(root_obj, context=None):
     def _clamp(v, lo, hi):
         return max(lo, min(hi, v))
 
-    def _create_front_post_assembly(name, hinge_axis_x, hinge_axis_y, hinge_centers_world_z, *,
-                                    is_left_side):
+    def _create_front_post_assembly(name, hinge_axis_x, hinge_axis_y, hinge_centers_world_z):
         """Front post replacement: plate + rib segments with hinge gaps."""
         assembly = bpy.data.objects.new(name, None)
         assembly.empty_display_type = 'PLAIN_AXES'
@@ -214,29 +260,30 @@ def rebuild_container(root_obj, context=None):
         col.objects.link(assembly)
         assembly.parent = root_obj
 
-        # Plate behind the hinges
-        plate_x = 0.100
-        plate_y = 0.050
-        plate_cx = _clamp(hinge_axis_x, plate_x * 0.5, W - plate_x * 0.5)
-        plate_cy = _clamp(hinge_axis_y, plate_y * 0.5, L - plate_y * 0.5)
-        plate = create_box(f"{name}_Plate", plate_x, plate_y, post_h, (plate_cx, plate_cy, H / 2))
-        col.objects.link(plate)
-        plate.parent = assembly
-
         # Reinforcement rib running along the plate (Z), except where hinges are.
         # NOTE: User requested "0.45 by 0.45" — interpreted as 0.045 m (45 mm).
         rib_x = 0.045
         rib_y = 0.045
 
-        plate_min_x = plate_cx - plate_x * 0.5
-        plate_max_x = plate_cx + plate_x * 0.5
-        plate_min_y = plate_cy # - plate_y * 0.5
+        # Ribs: align XY-centre to hinge pivot axis.
+        rib_cx = hinge_axis_x
+        rib_cy = hinge_axis_y
 
-        if is_left_side:
-            rib_cx = plate_min_x + rib_x * 0.5
-        else:
-            rib_cx = plate_max_x - rib_x * 0.5
-        rib_cy = plate_min_y - rib_y * 0.5
+        # Plate: 0.1 m wide in X, spans in Y from rib back-face to the side-panel edge.
+        plate_x = 0.100
+        post_max_y = cy + (pw * 0.5)  # where the side-panel starts (front edge)
+        plate_min_y = rib_cy + (rib_y * 0.5)
+        plate_max_y = post_max_y
+        if plate_max_y < plate_min_y:
+            plate_min_y, plate_max_y = plate_max_y, plate_min_y
+
+        plate_y = max(0.001, plate_max_y - plate_min_y)
+        plate_cx = _clamp(hinge_axis_x + 0.027, plate_x * 0.5, W - plate_x * 0.5)
+        plate_cy = _clamp((plate_min_y + plate_max_y) * 0.5, plate_y * 0.5, L - plate_y * 0.5)
+
+        plate = create_box(f"{name}_Plate", plate_x, plate_y, post_h, (plate_cx, plate_cy, H / 2))
+        col.objects.link(plate)
+        plate.parent = assembly
 
         z0 = ch
         z1 = H - ch
@@ -302,21 +349,24 @@ def rebuild_container(root_obj, context=None):
 
     hinge_z_world = []
     if props.show_front_panel:
-        door_h = panel_h
-        hinge_z_local = get_hinge_positions(door_h, hinge_count=props.door_hinge_count)
-        hinge_z_world = [door_floor_z + z for z in hinge_z_local]
+        # Distribute hinges with a 0.05 m margin from the *casting clearance*
+        # (between castings), then translate into door-local/world space.
+        hinge_span_h = post_h  # z extent between castings: [ch, H-ch]
+        hinge_span_z = get_hinge_positions(hinge_span_h, hinge_count=props.door_hinge_count)
+        hinge_z_local = [(ch - door_floor_z) + z for z in hinge_span_z]
+        hinge_z_world = [ch + z for z in hinge_span_z]
 
     if post_conditions.get("Front_Left_Post", lambda: False)():
         fl_axis_x = (cx + pw / 2) - hinge_off_x
         fl_axis_y = cy - hinge_off_y
         created_posts["Front_Left_Post"] = _create_front_post_assembly(
-            "Front_Left_Post", fl_axis_x, fl_axis_y, hinge_z_world, is_left_side=True)
+            "Front_Left_Post", fl_axis_x, fl_axis_y, hinge_z_world)
 
     if post_conditions.get("Front_Right_Post", lambda: False)():
         fr_axis_x = (W - cx - pw / 2) + hinge_off_x
         fr_axis_y = cy - hinge_off_y
         created_posts["Front_Right_Post"] = _create_front_post_assembly(
-            "Front_Right_Post", fr_axis_x, fr_axis_y, hinge_z_world, is_left_side=False)
+            "Front_Right_Post", fr_axis_x, fr_axis_y, hinge_z_world)
 
     # ── FRONT / BACK RAILS ────────────────────────────────────────────────
     fb_rail_len = W - (2 * cw)
@@ -412,6 +462,13 @@ def rebuild_container(root_obj, context=None):
                 if not child.users_collection:
                     col.objects.link(child)
 
+            # Override hinge Z positions so distribution respects the casting clearance margin.
+            if hinge_z_local:
+                for idx, inst in enumerate(sorted(lh.children, key=lambda o: o.name)):
+                    if idx >= len(hinge_z_local):
+                        break
+                    inst.location.z = hinge_z_local[idx]
+
             # Locking hardware — brackets snapped to gap centres
             hw = create_locking_hardware(
                 "Left_Hardware", door_w, door_h, True, floor_z_off,
@@ -475,6 +532,13 @@ def rebuild_container(root_obj, context=None):
             for child in rh_obj.children:
                 if not child.users_collection:
                     col.objects.link(child)
+
+            # Override hinge Z positions so distribution respects the casting clearance margin.
+            if hinge_z_local:
+                for idx, inst in enumerate(sorted(rh_obj.children, key=lambda o: o.name)):
+                    if idx >= len(hinge_z_local):
+                        break
+                    inst.location.z = hinge_z_local[idx]
 
             # Locking hardware — brackets snapped to gap centres
             hw = create_locking_hardware(
@@ -596,7 +660,10 @@ def rebuild_container(root_obj, context=None):
         bows.parent = roof_assembly
 
     # ── MATERIALS ─────────────────────────────────────────────────────────────
-    metal_mat    = get_or_create_container_material()
+    if getattr(props, "shader_material_mode", 'SINGLE') == 'DOUBLE':
+        metal_mat = get_or_create_container_material_double_sided()
+    else:
+        metal_mat = get_or_create_container_material()
     wood_mat     = get_or_create_wood_material()
     decal_mat    = get_or_create_decal_material()
     hardware_mat = get_or_create_hardware_material()
@@ -614,6 +681,9 @@ def rebuild_container(root_obj, context=None):
             obj["shader_scratch_intensity"]  = props.shader_scratch_intensity
             obj["shader_color_override_amt"] = props.shader_color_override_amount
             obj["shader_color_override"]     = list(props.shader_color_override)
+            obj["shader_inside_color"]       = list(getattr(props, "shader_inside_color", (0.62, 0.62, 0.62, 1.0)))
+            obj["shader_inside_roughness"]   = float(getattr(props, "shader_inside_roughness", 0.75))
+            obj["shader_inside_metallic"]    = float(getattr(props, "shader_inside_metallic", 0.0))
 
             if obj.get("is_hardware"):
                 mat = hardware_mat
@@ -628,6 +698,9 @@ def rebuild_container(root_obj, context=None):
                 obj["shader_scratch_intensity"]  = props.shader_scratch_intensity
                 obj["shader_color_override_amt"] = props.shader_color_override_amount
                 obj["shader_color_override"]     = list(props.shader_color_override)
+                obj["shader_inside_color"]       = list(getattr(props, "shader_inside_color", (0.62, 0.62, 0.62, 1.0)))
+                obj["shader_inside_roughness"]   = float(getattr(props, "shader_inside_roughness", 0.75))
+                obj["shader_inside_metallic"]    = float(getattr(props, "shader_inside_metallic", 0.0))
                 mat = metal_mat
             elif "Wood" in obj.name:
                 mat = wood_mat

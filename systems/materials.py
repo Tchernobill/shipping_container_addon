@@ -64,6 +64,8 @@ def hex_to_linear_rgba(hex_str):
 
 _MAT_NAME   = "ISO_Container_Metal"
 _GROUP_NAME = "ISO_Container_Shader"
+_MAT_NAME_DOUBLE = "ISO_Container_Metal_DoubleSided"
+_SHADER_VERSION = 6
 
 _Z_BOTTOM = 0.0     # world Z at container floor
 _Z_TOP    = 2.591   # world Z at container roof (ISO 668 standard height)
@@ -238,6 +240,7 @@ def _build_shader_group():
     The group interface exposes only the single Shader output socket.
     """
     grp = bpy.data.node_groups.new(_GROUP_NAME, 'ShaderNodeTree')
+    grp["iso_container_shader_version"] = _SHADER_VERSION
     N = grp.nodes
 
     def L(a, b):
@@ -653,6 +656,29 @@ def _build_shader_group():
     return grp
 
 
+def _ensure_v6_shader_group():
+    """Return a v6 shader group, rebuilding if an older one is present.
+
+    If an older group exists and has users, it is renamed instead of deleted
+    to avoid breaking existing materials.
+    """
+    if _GROUP_NAME in bpy.data.node_groups:
+        existing = bpy.data.node_groups[_GROUP_NAME]
+        if int(existing.get("iso_container_shader_version", 0)) == _SHADER_VERSION:
+            return existing
+
+        # Older / unknown version. Avoid breaking materials that reference it.
+        base = f"{_GROUP_NAME}_legacy"
+        idx = 1
+        new_name = f"{base}_{idx}"
+        while new_name in bpy.data.node_groups:
+            idx += 1
+            new_name = f"{base}_{idx}"
+        existing.name = new_name
+
+    return _build_shader_group()
+
+
 # ─────────────────────────────────────────────────────────────────────
 #  Public material functions
 # ─────────────────────────────────────────────────────────────────────
@@ -673,11 +699,7 @@ def get_or_create_container_material():
     if _MAT_NAME in bpy.data.materials:
         return bpy.data.materials[_MAT_NAME]
 
-    # Ensure the group is also fresh (no stale v5 group lingering)
-    if _GROUP_NAME in bpy.data.node_groups:
-        bpy.data.node_groups.remove(bpy.data.node_groups[_GROUP_NAME])
-
-    grp = _build_shader_group()
+    grp = _ensure_v6_shader_group()
 
     mat = bpy.data.materials.new(_MAT_NAME)
     mat.use_nodes             = True
@@ -697,6 +719,82 @@ def get_or_create_container_material():
     grp_node.node_tree = grp
     grp_node.location  = (-50, 0)
     mt.links.new(grp_node.outputs[0], mat_out.inputs[0])
+
+    return mat
+
+
+def get_or_create_container_material_double_sided():
+    """Container material with different shading on front/back faces.
+
+    This supports single-plane geometry (no thickness) by mixing the outside
+    ISO_Container_Shader with an inside Principled BSDF using the Geometry
+    'Backfacing' output.
+
+    Inside look is controlled by object custom properties:
+      shader_inside_color      float[4]  RGBA
+      shader_inside_roughness  float 0–1
+      shader_inside_metallic   float 0–1
+    """
+    if _MAT_NAME_DOUBLE in bpy.data.materials:
+        return bpy.data.materials[_MAT_NAME_DOUBLE]
+
+    grp = _ensure_v6_shader_group()
+
+    mat = bpy.data.materials.new(_MAT_NAME_DOUBLE)
+    mat.use_nodes = True
+    mat.use_backface_culling = False
+    mat.blend_method = 'HASHED'
+    mat.displacement_method = 'BUMP'
+    mat.surface_render_method = 'DITHERED'
+
+    nt = mat.node_tree
+    nodes = nt.nodes
+    links = nt.links
+    nodes.clear()
+
+    out = nodes.new("ShaderNodeOutputMaterial")
+    out.location = (600, 0)
+    out.is_active_output = True
+    out.target = 'ALL'
+
+    geo = nodes.new("ShaderNodeNewGeometry")
+    geo.location = (-450, 0)
+
+    outside = nodes.new("ShaderNodeGroup")
+    outside.node_tree = grp
+    outside.location = (-450, 220)
+
+    inside_bsdf = nodes.new("ShaderNodeBsdfPrincipled")
+    inside_bsdf.location = (-450, -250)
+    inside_bsdf.inputs["Roughness"].default_value = 0.75
+    inside_bsdf.inputs["Metallic"].default_value = 0.0
+
+    attr_inside_col = nodes.new("ShaderNodeAttribute")
+    attr_inside_col.location = (-750, -310)
+    attr_inside_col.attribute_type = 'OBJECT'
+    attr_inside_col.attribute_name = "shader_inside_color"
+
+    attr_inside_rough = nodes.new("ShaderNodeAttribute")
+    attr_inside_rough.location = (-750, -430)
+    attr_inside_rough.attribute_type = 'OBJECT'
+    attr_inside_rough.attribute_name = "shader_inside_roughness"
+
+    attr_inside_met = nodes.new("ShaderNodeAttribute")
+    attr_inside_met.location = (-750, -550)
+    attr_inside_met.attribute_type = 'OBJECT'
+    attr_inside_met.attribute_name = "shader_inside_metallic"
+
+    links.new(attr_inside_col.outputs["Color"], inside_bsdf.inputs["Base Color"])
+    links.new(attr_inside_rough.outputs["Fac"], inside_bsdf.inputs["Roughness"])
+    links.new(attr_inside_met.outputs["Fac"], inside_bsdf.inputs["Metallic"])
+
+    mix = nodes.new("ShaderNodeMixShader")
+    mix.location = (250, 0)
+    links.new(geo.outputs["Backfacing"], mix.inputs[0])
+    links.new(outside.outputs[0], mix.inputs[1])
+    links.new(inside_bsdf.outputs["BSDF"], mix.inputs[2])
+
+    links.new(mix.outputs[0], out.inputs["Surface"])
 
     return mat
 

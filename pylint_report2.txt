@@ -1,0 +1,262 @@
+************* Module shipping_container_addon
+shipping_container_addon\__init__.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\__init__.py:11:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\__init__.py:11:0: C0413: Import "import bpy" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:12:0: C0413: Import "import importlib" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:17:0: C0413: Import "from . import utils" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:18:0: C0413: Import "from . import properties" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:19:0: C0413: Import "from . import ui" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:20:0: C0413: Import "from . import operators" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:23:0: C0413: Import "from .geometry import panels" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:24:0: C0413: Import "from .geometry import frame" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:25:0: C0413: Import "from .geometry import corrugation" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:26:0: C0413: Import "from .geometry import doors" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:27:0: C0413: Import "from .geometry import castings" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:28:0: C0413: Import "from .geometry import roof" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:29:0: C0413: Import "from .geometry import floor" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:30:0: C0413: Import "from .geometry import decals" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:31:0: C0413: Import "from .geometry import proxy" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:33:0: C0413: Import "from .systems import materials" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:34:0: C0413: Import "from .systems import rebuild" should be placed at the top of the module (wrong-import-position)
+shipping_container_addon\__init__.py:68:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\__init__.py:73:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\__init__.py:12:0: C0411: standard import "importlib" should be placed before third party import "bpy" (wrong-import-order)
+************* Module shipping_container_addon.operators
+shipping_container_addon\operators.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\operators.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\operators.py:6:0: C0103: Class name "MESH_OT_add_shipping_container" doesn't conform to PascalCase naming style (invalid-name)
+shipping_container_addon\operators.py:12:4: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\operators.py:6:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+shipping_container_addon\operators.py:37:0: C0103: Class name "OBJECT_OT_bake_container_to_single_mesh" doesn't conform to PascalCase naming style (invalid-name)
+shipping_container_addon\operators.py:44:4: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\operators.py:47:4: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\operators.py:123:0: C0103: Class name "OBJECT_OT_create_container_stack" doesn't conform to PascalCase naming style (invalid-name)
+shipping_container_addon\operators.py:130:4: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\operators.py:133:4: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\operators.py:145:8: C0415: Import outside toplevel (systems.stack.create_container_stack) (import-outside-toplevel)
+shipping_container_addon\operators.py:163:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\operators.py:167:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\operators.py:2:0: C0411: standard import "random" should be placed before third party import "bpy" (wrong-import-order)
+************* Module shipping_container_addon.properties
+shipping_container_addon\properties.py:70:0: C0301: Line too long (103/100) (line-too-long)
+shipping_container_addon\properties.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\properties.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\properties.py:46:0: C0115: Missing class docstring (missing-class-docstring)
+shipping_container_addon\properties.py:46:0: R0903: Too few public methods (0/2) (too-few-public-methods)
+shipping_container_addon\properties.py:241:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\properties.py:247:0: C0116: Missing function or method docstring (missing-function-docstring)
+************* Module shipping_container_addon.ui
+shipping_container_addon\ui.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\ui.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\ui.py:29:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\ui.py:29:0: R0915: Too many statements (58/50) (too-many-statements)
+shipping_container_addon\ui.py:117:0: C0103: Class name "OBJECT_PT_shipping_container" doesn't conform to PascalCase naming style (invalid-name)
+shipping_container_addon\ui.py:125:4: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\ui.py:117:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+shipping_container_addon\ui.py:129:0: C0103: Class name "OBJECT_PT_shipping_container_properties" doesn't conform to PascalCase naming style (invalid-name)
+shipping_container_addon\ui.py:138:4: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\ui.py:129:0: R0903: Too few public methods (1/2) (too-few-public-methods)
+shipping_container_addon\ui.py:146:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\ui.py:151:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\ui.py:157:0: C0116: Missing function or method docstring (missing-function-docstring)
+************* Module shipping_container_addon.utils
+shipping_container_addon\utils.py:15:0: C0301: Line too long (105/100) (line-too-long)
+shipping_container_addon\utils.py:60:0: C0301: Line too long (102/100) (line-too-long)
+shipping_container_addon\utils.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\utils.py:1:0: E0401: Unable to import 'bpy' (import-error)
+************* Module shipping_container_addon.geometry.castings
+shipping_container_addon\geometry\castings.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\geometry\castings.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\geometry\castings.py:2:0: E0401: Unable to import 'bmesh' (import-error)
+shipping_container_addon\geometry\castings.py:4:0: E0401: Unable to import 'mathutils' (import-error)
+shipping_container_addon\geometry\castings.py:8:0: R0912: Too many branches (13/12) (too-many-branches)
+shipping_container_addon\geometry\castings.py:66:0: R0914: Too many local variables (18/15) (too-many-locals)
+shipping_container_addon\geometry\castings.py:134:0: R0913: Too many arguments (6/5) (too-many-arguments)
+shipping_container_addon\geometry\castings.py:134:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+shipping_container_addon\geometry\castings.py:134:0: R0914: Too many local variables (17/15) (too-many-locals)
+shipping_container_addon\geometry\castings.py:3:0: C0411: standard import "math" should be placed before third party imports "bpy", "bmesh" (wrong-import-order)
+************* Module shipping_container_addon.geometry.corrugation
+shipping_container_addon\geometry\corrugation.py:138:0: C0301: Line too long (104/100) (line-too-long)
+shipping_container_addon\geometry\corrugation.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\geometry\corrugation.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\geometry\corrugation.py:110:0: R0913: Too many arguments (9/5) (too-many-arguments)
+shipping_container_addon\geometry\corrugation.py:110:0: R0917: Too many positional arguments (9/5) (too-many-positional-arguments)
+************* Module shipping_container_addon.geometry.decals
+shipping_container_addon\geometry\decals.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\geometry\decals.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\geometry\decals.py:2:0: C0411: standard import "random" should be placed before third party import "bpy" (wrong-import-order)
+************* Module shipping_container_addon.geometry.doors
+shipping_container_addon\geometry\doors.py:589:0: C0301: Line too long (108/100) (line-too-long)
+shipping_container_addon\geometry\doors.py:615:0: C0301: Line too long (102/100) (line-too-long)
+shipping_container_addon\geometry\doors.py:38:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\geometry\doors.py:39:0: E0401: Unable to import 'bmesh' (import-error)
+shipping_container_addon\geometry\doors.py:41:0: E0401: Unable to import 'mathutils' (import-error)
+shipping_container_addon\geometry\doors.py:68:0: R0913: Too many arguments (7/5) (too-many-arguments)
+shipping_container_addon\geometry\doors.py:68:0: R0917: Too many positional arguments (7/5) (too-many-positional-arguments)
+shipping_container_addon\geometry\doors.py:75:0: R0913: Too many arguments (8/5) (too-many-arguments)
+shipping_container_addon\geometry\doors.py:75:0: R0917: Too many positional arguments (8/5) (too-many-positional-arguments)
+shipping_container_addon\geometry\doors.py:112:0: R0914: Too many local variables (20/15) (too-many-locals)
+shipping_container_addon\geometry\doors.py:220:0: R0914: Too many local variables (26/15) (too-many-locals)
+shipping_container_addon\geometry\doors.py:307:0: R0914: Too many local variables (16/15) (too-many-locals)
+shipping_container_addon\geometry\doors.py:432:4: C0103: Variable name "MIN_GAP" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\doors.py:489:0: R0913: Too many arguments (6/5) (too-many-arguments)
+shipping_container_addon\geometry\doors.py:489:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+shipping_container_addon\geometry\doors.py:509:4: C0103: Variable name "N" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\doors.py:601:0: R0913: Too many arguments (6/5) (too-many-arguments)
+shipping_container_addon\geometry\doors.py:601:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+shipping_container_addon\geometry\doors.py:40:0: C0411: standard import "math" should be placed before third party imports "bpy", "bmesh" (wrong-import-order)
+************* Module shipping_container_addon.geometry.floor
+shipping_container_addon\geometry\floor.py:51:0: C0301: Line too long (112/100) (line-too-long)
+shipping_container_addon\geometry\floor.py:82:0: C0301: Line too long (102/100) (line-too-long)
+shipping_container_addon\geometry\floor.py:83:0: C0301: Line too long (101/100) (line-too-long)
+shipping_container_addon\geometry\floor.py:154:0: C0301: Line too long (105/100) (line-too-long)
+shipping_container_addon\geometry\floor.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\geometry\floor.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\geometry\floor.py:22:0: R0914: Too many local variables (19/15) (too-many-locals)
+shipping_container_addon\geometry\floor.py:144:0: R0913: Too many arguments (7/5) (too-many-arguments)
+shipping_container_addon\geometry\floor.py:144:0: R0914: Too many local variables (21/15) (too-many-locals)
+shipping_container_addon\geometry\floor.py:202:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\geometry\floor.py:202:0: R0913: Too many arguments (9/5) (too-many-arguments)
+************* Module shipping_container_addon.geometry.frame
+shipping_container_addon\geometry\frame.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+************* Module shipping_container_addon.geometry.panels
+shipping_container_addon\geometry\panels.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+************* Module shipping_container_addon.geometry.primitives
+shipping_container_addon\geometry\primitives.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\geometry\primitives.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\geometry\primitives.py:2:0: E0401: Unable to import 'bmesh' (import-error)
+shipping_container_addon\geometry\primitives.py:21:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\geometry\primitives.py:21:0: R0913: Too many arguments (6/5) (too-many-arguments)
+shipping_container_addon\geometry\primitives.py:82:0: R0913: Too many arguments (7/5) (too-many-arguments)
+************* Module shipping_container_addon.geometry.proxy
+shipping_container_addon\geometry\proxy.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\geometry\proxy.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\geometry\proxy.py:2:0: E0401: Unable to import 'bmesh' (import-error)
+shipping_container_addon\geometry\proxy.py:5:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\geometry\proxy.py:11:27: C0103: Argument name "W" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\proxy.py:11:30: C0103: Argument name "L" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\proxy.py:11:33: C0103: Argument name "H" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\proxy.py:11:0: R0914: Too many local variables (35/15) (too-many-locals)
+shipping_container_addon\geometry\proxy.py:60:4: C0103: Variable name "base_W" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\proxy.py:60:12: C0103: Variable name "base_L" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\proxy.py:60:20: C0103: Variable name "base_H" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\geometry\proxy.py:11:0: R0912: Too many branches (14/12) (too-many-branches)
+************* Module shipping_container_addon.geometry.roof
+shipping_container_addon\geometry\roof.py:16:0: C0301: Line too long (107/100) (line-too-long)
+shipping_container_addon\geometry\roof.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\geometry\roof.py:1:0: E0401: Unable to import 'bpy' (import-error)
+************* Module shipping_container_addon.systems.materials
+shipping_container_addon\systems\materials.py:847:0: C0301: Line too long (110/100) (line-too-long)
+shipping_container_addon\systems\materials.py:851:0: C0301: Line too long (110/100) (line-too-long)
+shipping_container_addon\systems\materials.py:41:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\systems\materials.py:130:0: R0913: Too many arguments (11/5) (too-many-arguments)
+shipping_container_addon\systems\materials.py:184:0: R0913: Too many arguments (7/5) (too-many-arguments)
+shipping_container_addon\systems\materials.py:184:0: R0917: Too many positional arguments (7/5) (too-many-positional-arguments)
+shipping_container_addon\systems\materials.py:195:0: R0913: Too many arguments (6/5) (too-many-arguments)
+shipping_container_addon\systems\materials.py:195:0: R0917: Too many positional arguments (6/5) (too-many-positional-arguments)
+shipping_container_addon\systems\materials.py:207:0: R0913: Too many arguments (7/5) (too-many-arguments)
+shipping_container_addon\systems\materials.py:207:0: R0917: Too many positional arguments (7/5) (too-many-positional-arguments)
+shipping_container_addon\systems\materials.py:233:0: R0914: Too many local variables (84/15) (too-many-locals)
+shipping_container_addon\systems\materials.py:241:4: C0103: Variable name "N" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\materials.py:243:4: C0103: Function name "L" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\materials.py:233:0: R0915: Too many statements (195/50) (too-many-statements)
+shipping_container_addon\systems\materials.py:704:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\systems\materials.py:717:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\systems\materials.py:773:0: C0116: Missing function or method docstring (missing-function-docstring)
+shipping_container_addon\systems\materials.py:783:0: R0914: Too many local variables (21/15) (too-many-locals)
+shipping_container_addon\systems\materials.py:783:0: R0915: Too many statements (68/50) (too-many-statements)
+************* Module shipping_container_addon.systems.rebuild
+shipping_container_addon\systems\rebuild.py:386:0: C0301: Line too long (105/100) (line-too-long)
+shipping_container_addon\systems\rebuild.py:436:0: C0301: Line too long (108/100) (line-too-long)
+shipping_container_addon\systems\rebuild.py:460:0: C0301: Line too long (110/100) (line-too-long)
+shipping_container_addon\systems\rebuild.py:508:0: C0301: Line too long (107/100) (line-too-long)
+shipping_container_addon\systems\rebuild.py:1:0: C0114: Missing module docstring (missing-module-docstring)
+shipping_container_addon\systems\rebuild.py:1:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\systems\rebuild.py:94:0: R0914: Too many local variables (109/15) (too-many-locals)
+shipping_container_addon\systems\rebuild.py:112:4: C0103: Variable name "L" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\rebuild.py:113:4: C0103: Variable name "W" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\rebuild.py:114:4: C0103: Variable name "H" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\rebuild.py:207:4: R0914: Too many local variables (28/15) (too-many-locals)
+shipping_container_addon\systems\rebuild.py:207:4: R0915: Too many statements (51/50) (too-many-statements)
+shipping_container_addon\systems\rebuild.py:94:0: R0912: Too many branches (49/12) (too-many-branches)
+shipping_container_addon\systems\rebuild.py:94:0: R0915: Too many statements (327/50) (too-many-statements)
+shipping_container_addon\systems\rebuild.py:2:0: C0411: standard import "math" should be placed before third party import "bpy" (wrong-import-order)
+shipping_container_addon\systems\rebuild.py:3:0: C0411: standard import "random" should be placed before third party import "bpy" (wrong-import-order)
+************* Module shipping_container_addon.systems.stack
+shipping_container_addon\systems\stack.py:30:0: E0401: Unable to import 'bpy' (import-error)
+shipping_container_addon\systems\stack.py:177:0: R0913: Too many arguments (7/5) (too-many-arguments)
+shipping_container_addon\systems\stack.py:177:0: R0917: Too many positional arguments (7/5) (too-many-positional-arguments)
+shipping_container_addon\systems\stack.py:177:0: R0914: Too many local variables (17/15) (too-many-locals)
+shipping_container_addon\systems\stack.py:325:56: C0103: Argument name "W" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\stack.py:325:59: C0103: Argument name "L" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\stack.py:325:62: C0103: Argument name "H" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\stack.py:325:0: R0913: Too many arguments (9/5) (too-many-arguments)
+shipping_container_addon\systems\stack.py:325:0: R0917: Too many positional arguments (9/5) (too-many-positional-arguments)
+shipping_container_addon\systems\stack.py:325:0: R0914: Too many local variables (36/15) (too-many-locals)
+shipping_container_addon\systems\stack.py:325:0: R0912: Too many branches (14/12) (too-many-branches)
+shipping_container_addon\systems\stack.py:440:0: R0914: Too many local variables (32/15) (too-many-locals)
+shipping_container_addon\systems\stack.py:480:4: C0103: Variable name "W" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\stack.py:481:4: C0103: Variable name "L" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\stack.py:482:4: C0103: Variable name "H" doesn't conform to snake_case naming style (invalid-name)
+shipping_container_addon\systems\stack.py:440:0: R0912: Too many branches (14/12) (too-many-branches)
+shipping_container_addon\systems\stack.py:440:0: R0915: Too many statements (56/50) (too-many-statements)
+shipping_container_addon\systems\stack.py:31:0: C0411: standard import "math" should be placed before third party import "bpy" (wrong-import-order)
+shipping_container_addon\systems\stack.py:32:0: C0411: standard import "random" should be placed before third party import "bpy" (wrong-import-order)
+************* Module shipping_container_addon.systems.__init__
+shipping_container_addon\systems\__init__.py:1:0: R0801: Similar lines in 2 files
+==shipping_container_addon.systems.materials:[733:741]
+==shipping_container_addon.systems.stack:[58:69]
+    if mat_name in bpy.data.materials:
+        return bpy.data.materials[mat_name]
+
+    mat = bpy.data.materials.new(name=mat_name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
+
+    # Output
+    out = nodes.new('ShaderNodeOutputMaterial') (duplicate-code)
+shipping_container_addon\systems\__init__.py:1:0: R0801: Similar lines in 2 files
+==shipping_container_addon.geometry.corrugation:[147:154]
+==shipping_container_addon.geometry.panels:[5:12]
+    return create_object_from_mesh(
+        name,
+        mesh,
+        location=location,
+        rotation=rotation,
+        tag_container_part=True,
+    ) (duplicate-code)
+shipping_container_addon\systems\__init__.py:1:0: R0801: Similar lines in 2 files
+==shipping_container_addon.systems.materials:[785:794]
+==shipping_container_addon.systems.stack:[58:68]
+    if mat_name in bpy.data.materials:
+        return bpy.data.materials[mat_name]
+
+    mat = bpy.data.materials.new(name=mat_name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    nodes.clear()
+ (duplicate-code)
+shipping_container_addon\systems\__init__.py:1:0: R0801: Similar lines in 2 files
+==shipping_container_addon.geometry.corrugation:[147:152]
+==shipping_container_addon.geometry.primitives:[99:104]
+    return create_object_from_mesh(
+        name,
+        mesh,
+        location=location,
+        rotation=rotation, (duplicate-code)
+shipping_container_addon\systems\__init__.py:1:0: R0801: Similar lines in 2 files
+==shipping_container_addon.geometry.floor:[55:65]
+==shipping_container_addon.geometry.roof:[26:32]
+        mesh = bpy.data.meshes.new(mesh_name)
+        mesh.from_pydata(verts, [], faces)
+        mesh.update()
+        mesh.use_fake_user = True
+
+    return create_object_from_mesh(name, mesh, tag_container_part=True) (duplicate-code)
+
+-------------------------------------------------------------------
+Your code has been rated at 8.75/10 (previous run: 10.00/10, -1.25)
+

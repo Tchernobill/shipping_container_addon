@@ -18,7 +18,7 @@ def update_door_angle(self, context):
 def update_shader_props(self, _context):
     """Stamp shader control values onto all metal mesh children.
 
-    No geometry rebuild is needed — the v5 shader reads these values via
+    No geometry rebuild is needed — the shader reads these values via
     ShaderNodeAttribute (attribute_type='OBJECT'), so changing the custom
     property on a mesh child is sufficient to update the rendered result.
     update_tag() is called on each child so Blender's depsgraph knows to
@@ -29,6 +29,7 @@ def update_shader_props(self, _context):
         return
     p = self
     color = list(p.shader_color_override)   # [r, g, b, a]
+    inside_color = list(p.shader_inside_color)  # [r, g, b, a]
 
     for child in root_obj.children_recursive:
         if child.type == 'MESH':
@@ -38,9 +39,22 @@ def update_shader_props(self, _context):
             child["shader_scratch_intensity"]  = p.shader_scratch_intensity
             child["shader_color_override_amt"] = p.shader_color_override_amount
             child["shader_color_override"]     = color
+            child["shader_inside_color"]       = inside_color
+            child["shader_inside_roughness"]   = p.shader_inside_roughness
+            child["shader_inside_metallic"]    = p.shader_inside_metallic
             # Tell the depsgraph this object's data changed so the shader
             # re-evaluates the ShaderNodeAttribute values immediately.
             child.update_tag(refresh={'OBJECT'})
+
+
+def update_shader_mode(self, context):
+    """Swap between single- and double-sided container material (no rebuild)."""
+    root_obj = self.id_data
+    if not root_obj:
+        return
+
+    rebuild_system.update_container_materials(root_obj)
+    update_shader_props(self, context)
 
 
 class ShippingContainerProperties(bpy.types.PropertyGroup):
@@ -78,7 +92,7 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         description="How far the doors are open",
         default=0.0,
         min=0.0,
-        max=4.71239,
+        max=4.3633231,  # 250 degrees in radians
         subtype='ANGLE',
         update=update_door_angle,
     ) # type: ignore
@@ -90,9 +104,9 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
             "0 = flat recessed panel.  Maximum that fits depends on door height "
             "(auto-clamped with a 15 mm minimum gap)."
         ),
-        default=4,
+        default=3,
         min=0,
-        max=8,
+        max=5,
         update=update_container_rebuild,
     ) # type: ignore
 
@@ -139,6 +153,17 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         name="Shader",
         description="Expand / collapse the Shader section",
         default=False,
+    ) # type: ignore
+
+    shader_material_mode: bpy.props.EnumProperty(
+        name="Sidedness",
+        description="Choose whether the metal shader differs on inside vs outside faces",
+        items=[
+            ('SINGLE', "Single (Outside Only)", "One shader on both sides (classic)"),
+            ('DOUBLE', "Double (Outside + Inside)", "Different shading on backfaces for single-plane panels"),
+        ],
+        default='SINGLE',
+        update=update_shader_mode,
     ) # type: ignore
 
     shader_rust_strength: bpy.props.FloatProperty(
@@ -194,6 +219,35 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.55, 0.07, 0.04, 1.0),
+        update=update_shader_props,
+    ) # type: ignore
+
+    shader_inside_color: bpy.props.FloatVectorProperty(
+        name="Inside Color",
+        description="Interior paint colour (double-sided material only)",
+        subtype='COLOR',
+        size=4,
+        min=0.0,
+        max=1.0,
+        default=(0.62, 0.62, 0.62, 1.0),
+        update=update_shader_props,
+    ) # type: ignore
+
+    shader_inside_roughness: bpy.props.FloatProperty(
+        name="Inside Roughness",
+        description="Interior roughness (double-sided material only)",
+        default=0.75,
+        min=0.0,
+        max=1.0,
+        update=update_shader_props,
+    ) # type: ignore
+
+    shader_inside_metallic: bpy.props.FloatProperty(
+        name="Inside Metallic",
+        description="Interior metallic (double-sided material only)",
+        default=0.0,
+        min=0.0,
+        max=1.0,
         update=update_shader_props,
     ) # type: ignore
 

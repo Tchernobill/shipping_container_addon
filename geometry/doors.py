@@ -106,7 +106,7 @@ def _q(v, step=1.0e-6):
 
 def _door_panel_mesh_name(width, height, n_corr, is_left):
     side = "L" if is_left else "R"
-    return f"ISO_DoorPanel_{side}_{_q(width)}_{_q(height)}_{int(n_corr)}_v1"
+    return f"ISO_DoorPanel_{side}_{_q(width)}_{_q(height)}_{int(n_corr)}_v2"
 
 
 def _build_door_panel_mesh_data(width, height, num_corrugations):
@@ -295,7 +295,7 @@ def _hinge_z_positions(door_height, hinge_count=NUM_HINGES, hinge_height=HINGE_H
     _ = hinge_height
     if hinge_count == 1:
         return [door_height * 0.5]
-    margin = 0.05
+    margin = 0.10
     z0 = margin
     z1 = door_height - margin
     if z1 <= z0:
@@ -492,20 +492,31 @@ def _add_corrugated_strip(bm, x0, x1, z0, panel_h, n_corr):
     Ribs run horizontally (left → right across the door width).
 
     Cross-section closed loop (ZY plane):
-      • Forward path : corrugation profile  z0 → z0+panel_h  (varying y)
-      • Closing path : straight line at y = LEAF_T            (door back face)
+      • Forward path : corrugation mid-surface profile  z0 → z0+panel_h  (varying y)
+      • Return path  : same profile, offset by +2 mm in Y
+
+    The resulting center panel is a 2 mm-thick extrusion in Y, centered within
+    the door leaf thickness (Y = LEAF_T/2).
 
     The profile is swept from x = x0 (hinge side) to x = x1 (closing edge).
     Left and right faces are n-gon caps; Blender's ear-clipping handles the
     non-convex corrugation shape correctly at tessellation time.
     """
-    fwd  = _corr_profile(z0, panel_h, n_corr)
+    base = _corr_profile(z0, panel_h, n_corr)
 
-    # Close the cross-section at the back of the door leaf
-    loop = fwd + [
-        (fwd[-1][0], LEAF_T),   # back-top    corner  (z=z0+panel_h, y=LEAF_T)
-        (fwd[0][0],  LEAF_T),   # back-bottom corner  (z=z0,         y=LEAF_T)
-    ]
+    t = 0.002
+    half_t = t * 0.5
+    corr_depth = CORR_DEPTH if n_corr > 0 and panel_h >= 0.020 else 0.0
+
+    def _y_mid(y_profile):
+        # Center the corrugation profile within the leaf thickness.
+        # For corrugated panels, map [0..CORR_DEPTH] → [mid-CORR_DEPTH/2 .. mid+CORR_DEPTH/2].
+        # For flat panels (no corrugations), keep the mid-surface at LEAF_T/2.
+        return (LEAF_T * 0.5) + (y_profile - corr_depth * 0.5)
+
+    fwd = [(z, _y_mid(y) - half_t) for (z, y) in base]                 # −Y face
+    rev = [(z, _y_mid(y) + half_t) for (z, y) in reversed(base)]       # +Y face (return path)
+    loop = fwd + rev
     N = len(loop)
 
     # Each profile point (z, y) becomes a vert at x=x0 and a vert at x=x1.

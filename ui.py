@@ -77,6 +77,7 @@ def draw_container_controls(layout, obj):
                            "Shader", icon='MATERIAL')
     if open_:
         col = box.column(align=True)
+        col.prop(props, "shader_material_mode")
         col.prop(props, "shader_rust_strength",     slider=True)
         col.prop(props, "shader_stain_intensity",   slider=True)
         col.prop(props, "shader_dust_intensity",    slider=True)
@@ -85,6 +86,13 @@ def draw_container_controls(layout, obj):
         col2 = box.column(align=True)
         col2.prop(props, "shader_color_override_amount", slider=True)
         col2.prop(props, "shader_color_override")
+        if props.shader_material_mode == 'DOUBLE':
+            box.separator()
+            col3 = box.column(align=True)
+            col3.label(text="Inside (Backfaces)")
+            col3.prop(props, "shader_inside_color")
+            col3.prop(props, "shader_inside_roughness", slider=True)
+            col3.prop(props, "shader_inside_metallic", slider=True)
 
     # ── Stack Creator (collapsible) ────────────────────────────────────────────
     layout.separator()
