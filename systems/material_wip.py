@@ -1,181 +1,10 @@
-# ─────────────────────────────────────────────────────────────────────
-#  v6 shader constants
-# ─────────────────────────────────────────────────────────────────────
-
-_MAT_NAME   = "ISO_Container_Metal"
-_GROUP_NAME = "ISO_Container_Shader"
-
-_Z_BOTTOM = 0.0     # world Z at container floor
-_Z_TOP    = 2.591   # world Z at container roof (ISO 668 standard height)
-_Z_MID    = 1.295   # midpoint
-
-# Per-noise prime W-offset scales.  Each noise uses a different prime so
-# its pattern is decorrelated from the others even with one shared seed.
-_W_SCALE = {
-    "N_Roughness"  :  7.31,
-    "N_Specular"   : 13.73,
-    "N_RustPat"    :  5.03,
-    "N_RustBump"   : 17.39,
-    "N_Stain"      : 11.93,
-    "N_Dust"       :  3.71,
-    # v6: N_Scratch now drives the wave-distortion noise W offset
-    "N_Scratch"    : 19.13,
-}
-_W_BASE = {
-    "N_Roughness"  :  3.0,
-    "N_Specular"   :  1.0,
-    "N_RustPat"    :  0.0,
-    "N_RustBump"   :  0.0,
-    "N_Stain"      :  0.0,
-    "N_Dust"       :  0.0,
-    "N_Scratch"    :  0.0,
-}
-
-# 8-colour constant palette — each stop is one of the main container colours.
-# CR_Palette (CONSTANT interpolation) snaps to the nearest stop.
-_PALETTE =[
-    (0.000, (0.021, 0.095, 0.270, 1.0)),   # dark navy
-    (0.125, (0.007, 0.022, 0.056, 1.0)),   # very dark blue
-    (0.250, (0.027, 0.133, 0.381, 1.0)),   # mid blue
-    (0.375, (0.292, 0.047, 0.026, 1.0)),   # dark red
-    (0.500, (0.184, 0.032, 0.019, 1.0)),   # standard red
-    (0.625, (0.120, 0.022, 0.014, 1.0)),   # deep red
-    (0.750, (0.009, 0.061, 0.006, 1.0)),   # evergreen
-    (0.875, (0.216, 0.216, 0.216, 1.0)),   # steel grey
-]
-
-# ─────────────────────────────────────────────────────────────────────
-#  Private node-graph helpers
-# ─────────────────────────────────────────────────────────────────────
-
-def _nd(nodes, typ, name, loc, **attrs):
-    """Create a new node, set name/label/location, apply extra attrs."""
-    n = nodes.new(typ)
-    n.name = n.label = name
-    n.location = loc
-    for k, v in attrs.items():
-        setattr(n, k, v)
-    return n
+import bpy
+import mathutils
+import os
+import typing
 
 
-def _attr_obj(nodes, node_name, attr_name, loc):
-    """ShaderNodeAttribute that reads a named object custom property."""
-    n = _nd(nodes, "ShaderNodeAttribute", node_name, loc)
-    n.attribute_type = 'OBJECT'
-    n.attribute_name = attr_name
-    return n
-
-
-def _noise(nodes, name, loc, *,
-           ntype='FBM', normalize=True,
-           scale=5.0, detail=8.0, rough=0.6, lac=2.0,
-           w_sock=None, w_base=0.0):
-    """4-D ShaderNodeTexNoise.  w_sock wires the per-instance W offset."""
-    n = _nd(nodes, "ShaderNodeTexNoise", name, loc)
-    n.noise_dimensions        = '4D'
-    n.noise_type              = ntype
-    n.normalize               = normalize
-    n.inputs[2].default_value = scale
-    n.inputs[3].default_value = detail
-    n.inputs[4].default_value = rough
-    n.inputs[5].default_value = lac
-    n.inputs[1].default_value = w_base
-    if w_sock is not None:
-        nodes.id_data.links.new(w_sock, n.inputs[1])
-    return n
-
-
-def _make_w_sock(nodes, noise_name, seed_sock, loc_base):
-    """Build W = W_BASE + seed × W_SCALE and return the ADD output socket."""
-    lx, ly = loc_base[0] - 350, loc_base[1]
-    mul = _nd(nodes, "ShaderNodeMath", f"W_Mul_{noise_name}", (lx, ly + 60),
-              operation='MULTIPLY')
-    nodes.id_data.links.new(seed_sock, mul.inputs[0])
-    mul.inputs[1].default_value = _W_SCALE[noise_name]
-    add = _nd(nodes, "ShaderNodeMath", f"W_Add_{noise_name}", (lx, ly - 60),
-              operation='ADD')
-    add.inputs[0].default_value = _W_BASE[noise_name]
-    nodes.id_data.links.new(mul.outputs[0], add.inputs[1])
-    return add.outputs[0]
-
-
-def _color_ramp(nodes, name, loc, stops, interp='LINEAR'):
-    """Create a ValToRGB node with explicit colour stops."""
-    n = _nd(nodes, "ShaderNodeValToRGB", name, loc)
-    n.color_ramp.interpolation = interp
-    els = n.color_ramp.elements
-    while len(els) > 1:
-        els.remove(els[-1])
-    els[0].position = stops[0][0]
-    els[0].color    = stops[0][1]
-    for pos, col in stops[1:]:
-        els.new(pos).color = col
-    return n
-
-
-def _mapping(nodes, name, loc, scale=(1.0, 1.0, 1.0)):
-    """Mapping node (POINT type) with a preset scale."""
-    n = _nd(nodes, "ShaderNodeMapping", name, loc, vector_type='POINT')
-    n.inputs[3].default_value = scale
-    return n
-
-
-def _math(nodes, name, loc, op, v0=None, v1=None, clamp=False):
-    """Math node with optional constant defaults on inputs 0 and 1."""
-    n = _nd(nodes, "ShaderNodeMath", name, loc,
-            operation=op, use_clamp=clamp)
-    if v0 is not None:
-        n.inputs[0].default_value = v0
-    if v1 is not None:
-        n.inputs[1].default_value = v1
-    return n
-
-
-def _mix_rgba(nodes, name, loc, mode, fac=None, b_col=None):
-    """Mix RGBA node (UNIFORM factor mode)."""
-    n = _nd(nodes, "ShaderNodeMix", name, loc,
-            blend_type=mode, data_type='RGBA',
-            factor_mode='UNIFORM', clamp_factor=True)
-    if fac is not None:
-        n.inputs[0].default_value = fac
-    if b_col is not None:
-        n.inputs[7].default_value = b_col
-    return n
-
-
-def _map_range(nodes, name, loc, lo_in, hi_in, lo_out, hi_out):
-    """MapRange node (clamped)."""
-    n = _nd(nodes, "ShaderNodeMapRange", name, loc, clamp=True)
-    n.inputs[1].default_value = lo_in
-    n.inputs[2].default_value = hi_in
-    n.inputs[3].default_value = lo_out
-    n.inputs[4].default_value = hi_out
-    return n
-
-
-def _principled(nodes, name, loc):
-    """Principled BSDF with MULTI_GGX distribution and RANDOM_WALK SSS."""
-    n = nodes.new("ShaderNodeBsdfPrincipled")
-    n.name = n.label = name
-    n.location = loc
-    n.distribution      = 'MULTI_GGX'
-    n.subsurface_method = 'RANDOM_WALK'
-    n.inputs[4].default_value  = 1.0   # Alpha
-    n.inputs[28].default_value = 0.0   # Emission Strength
-    return n
-
-
-# ─────────────────────────────────────────────────────────────────────
-#  v6 Shader group builder
-# ─────────────────────────────────────────────────────────────────────
-
-
-
-# ─────────────────────────────────────────────────────────────────────
-#  v6 Shader group builder
-# ─────────────────────────────────────────────────────────────────────
-
-def _build_shader_group():
+def iso_container_shader_1_node_group(node_tree_names: dict[typing.Callable, str]):
     """Initialize ISO_Container_Shader node group"""
     iso_container_shader_1 = bpy.data.node_groups.new(type = 'ShaderNodeTree', name = "ISO_Container_Shader")
 
@@ -2044,68 +1873,44 @@ def _build_shader_group():
     return iso_container_shader_1
 
 
-# ─────────────────────────────────────────────────────────────────────
-#  Public material functions
-# ─────────────────────────────────────────────────────────────────────
-
-def get_or_create_container_material():
-    """Return the ISO_Container_Metal v6 material, building it if absent.
-
-    v6 upgrades over v5:
-      • Wave-based directional scratches (horizontal, cargo-realistic)
-      • Three-BSDF chain: paint → worn bare steel → rust
-      • Edge roughness bump (edges matte before fully rusting)
-
-    To force full regeneration:
-      bpy.data.materials.remove(bpy.data.materials['ISO_Container_Metal'])
-      bpy.data.node_groups.remove(bpy.data.node_groups['ISO_Container_Shader'])
-    Then rebuild any container to regenerate.
-    """
-    mat_name = "ISO_Container_Metal"
-    if mat_name in bpy.data.materials:
-        return bpy.data.materials[mat_name]
-
-    # Ensure the group is also fresh (no stale v5 group lingering)
-    group_name = "ISO_Container_Shader"
-    if group_name in bpy.data.node_groups:
-        bpy.data.node_groups.remove(bpy.data.node_groups[group_name])
-
-    grp = _build_shader_group()
-
-    iso_container_metal = bpy.data.materials.new(name=mat_name)
+iso_container_metal = bpy.data.materials.new(name = "ISO_Container_Metal")
+if bpy.app.version < (5, 0, 0):
     iso_container_metal.use_nodes = True
 
-    iso_container_metal.alpha_threshold = 0.5
-    iso_container_metal.line_priority = 0
-    iso_container_metal.max_vertex_displacement = 0.0
-    iso_container_metal.metallic = 0.0
-    iso_container_metal.paint_active_slot = 0
-    iso_container_metal.paint_clone_slot = 0
-    iso_container_metal.pass_index = 0
-    iso_container_metal.refraction_depth = 0.0
-    iso_container_metal.roughness = 0.4
-    iso_container_metal.show_transparent_back = True
-    iso_container_metal.specular_intensity = 0.5
-    iso_container_metal.use_backface_culling = False
-    iso_container_metal.use_backface_culling_lightprobe_volume = True
-    iso_container_metal.use_backface_culling_shadow = False
-    iso_container_metal.use_preview_world = False
-    iso_container_metal.use_raytrace_refraction = False
-    iso_container_metal.use_screen_refraction = False
-    iso_container_metal.use_sss_translucency = False
-    iso_container_metal.use_thickness_from_shadow = False
-    iso_container_metal.use_transparency_overlap = True
-    iso_container_metal.use_transparent_shadow = True
-    iso_container_metal.blend_method = 'HASHED'
-    iso_container_metal.displacement_method = 'BUMP'
-    iso_container_metal.preview_render_type = 'SPHERE'
-    iso_container_metal.surface_render_method = 'DITHERED'
-    iso_container_metal.thickness_mode = 'SPHERE'
-    iso_container_metal.volume_intersection_method = 'FAST'
-    iso_container_metal.specular_color = (1.0, 1.0, 1.0)
-    iso_container_metal.diffuse_color = (0.8, 0.8, 0.8, 1.0)
-    iso_container_metal.line_color = (0.0, 0.0, 0.0, 0.0)
 
+iso_container_metal.alpha_threshold = 0.5
+iso_container_metal.line_priority = 0
+iso_container_metal.max_vertex_displacement = 0.0
+iso_container_metal.metallic = 0.0
+iso_container_metal.paint_active_slot = 0
+iso_container_metal.paint_clone_slot = 0
+iso_container_metal.pass_index = 0
+iso_container_metal.refraction_depth = 0.0
+iso_container_metal.roughness = 0.4
+iso_container_metal.show_transparent_back = True
+iso_container_metal.specular_intensity = 0.5
+iso_container_metal.use_backface_culling = False
+iso_container_metal.use_backface_culling_lightprobe_volume = True
+iso_container_metal.use_backface_culling_shadow = False
+iso_container_metal.use_preview_world = False
+iso_container_metal.use_raytrace_refraction = False
+iso_container_metal.use_screen_refraction = False
+iso_container_metal.use_sss_translucency = False
+iso_container_metal.use_thickness_from_shadow = False
+iso_container_metal.use_transparency_overlap = True
+iso_container_metal.use_transparent_shadow = True
+iso_container_metal.blend_method = 'HASHED'
+iso_container_metal.displacement_method = 'BUMP'
+iso_container_metal.preview_render_type = 'SPHERE'
+iso_container_metal.surface_render_method = 'DITHERED'
+iso_container_metal.thickness_mode = 'SPHERE'
+iso_container_metal.volume_intersection_method = 'FAST'
+iso_container_metal.specular_color = (1.0, 1.0, 1.0)
+iso_container_metal.diffuse_color = (0.8, 0.8, 0.8, 1.0)
+iso_container_metal.line_color = (0.0, 0.0, 0.0, 0.0)
+
+def shader_nodetree_node_group(node_tree_names: dict[typing.Callable, str]):
+    """Initialize Shader Nodetree node group"""
     shader_nodetree = iso_container_metal.node_tree
 
     # Start with a clean node tree
@@ -2114,6 +1919,7 @@ def get_or_create_container_material():
     shader_nodetree.color_tag = 'NONE'
     shader_nodetree.description = ""
     shader_nodetree.default_group_node_width = 140
+    # Initialize shader_nodetree nodes
 
     # Node Material Output
     material_output = shader_nodetree.nodes.new("ShaderNodeOutputMaterial")
@@ -2128,7 +1934,7 @@ def get_or_create_container_material():
     # Node Group
     group = shader_nodetree.nodes.new("ShaderNodeGroup")
     group.name = "Group"
-    group.node_tree = grp
+    group.node_tree = bpy.data.node_groups[node_tree_names[iso_container_shader_1_node_group]]
 
     # Set locations
     shader_nodetree.nodes["Material Output"].location = (400.0, 0.0)
@@ -2141,10 +1947,26 @@ def get_or_create_container_material():
     shader_nodetree.nodes["Group"].width  = 140.0
     shader_nodetree.nodes["Group"].height = 100.0
 
+
     # Initialize shader_nodetree links
+
+    # group.Shader -> material_output.Surface
     shader_nodetree.links.new(
         shader_nodetree.nodes["Group"].outputs[0],
         shader_nodetree.nodes["Material Output"].inputs[0]
     )
 
-    return iso_container_metal
+    return shader_nodetree
+
+
+if __name__ == "__main__":
+    # Maps node tree creation functions to the node tree 
+    # name, such that we don't recreate node trees unnecessarily
+    node_tree_names : dict[typing.Callable, str] = {}
+
+    iso_container_shader = iso_container_shader_1_node_group(node_tree_names)
+    node_tree_names[iso_container_shader_1_node_group] = iso_container_shader.name
+
+    shader_nodetree = shader_nodetree_node_group(node_tree_names)
+    node_tree_names[shader_nodetree_node_group] = shader_nodetree.name
+

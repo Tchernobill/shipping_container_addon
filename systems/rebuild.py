@@ -30,12 +30,11 @@ from ..geometry.decals import (
 from ..geometry.proxy import create_proxy_box
 from .materials import (
     get_or_create_container_material,
-    get_or_create_container_material_double_sided,
     get_or_create_wood_material,
     get_or_create_decal_material,
     get_or_create_hardware_material,
     get_or_create_proxy_material,
-    get_or_create_brand_material,
+    get_or_create_brand_material
 )
 
 
@@ -51,12 +50,8 @@ def update_container_materials(root_obj):
         # Proxy uses a different material pipeline.
         return
 
-    if getattr(props, "shader_material_mode", 'SINGLE') == 'DOUBLE':
-        metal_mat = get_or_create_container_material_double_sided()
-    else:
-        metal_mat = get_or_create_container_material()
-
-    wood_mat = get_or_create_wood_material()
+    metal_mat = get_or_create_container_material()
+    wood_mat =  get_or_create_wood_material()
     decal_mat = get_or_create_decal_material()
     hardware_mat = get_or_create_hardware_material()
 
@@ -169,7 +164,7 @@ def rebuild_container(root_obj, context=None):
         col.objects.link(proxy)
         proxy.parent = root_obj
 
-        proxy_mat = get_or_create_proxy_material()
+        proxy_mat = get_or_create_container_material() #get_or_create_proxy_material()
         proxy["container_seed"] = container_seed
         if proxy.data.materials:
             proxy.data.materials[0] = proxy_mat
@@ -251,7 +246,8 @@ def rebuild_container(root_obj, context=None):
     def _clamp(v, lo, hi):
         return max(lo, min(hi, v))
 
-    def _create_front_post_assembly(name, hinge_axis_x, hinge_axis_y, hinge_centers_world_z):
+    def _create_front_post_assembly(name, hinge_axis_x, hinge_axis_y, hinge_centers_world_z, *,
+                                    plate_x_offset):
         """Front post replacement: plate + rib segments with hinge gaps."""
         assembly = bpy.data.objects.new(name, None)
         assembly.empty_display_type = 'PLAIN_AXES'
@@ -278,7 +274,7 @@ def rebuild_container(root_obj, context=None):
             plate_min_y, plate_max_y = plate_max_y, plate_min_y
 
         plate_y = max(0.001, plate_max_y - plate_min_y)
-        plate_cx = _clamp(hinge_axis_x + 0.027, plate_x * 0.5, W - plate_x * 0.5)
+        plate_cx = _clamp(hinge_axis_x + plate_x_offset, plate_x * 0.5, W - plate_x * 0.5)
         plate_cy = _clamp((plate_min_y + plate_max_y) * 0.5, plate_y * 0.5, L - plate_y * 0.5)
 
         plate = create_box(f"{name}_Plate", plate_x, plate_y, post_h, (plate_cx, plate_cy, H / 2))
@@ -360,13 +356,13 @@ def rebuild_container(root_obj, context=None):
         fl_axis_x = (cx + pw / 2) - hinge_off_x
         fl_axis_y = cy - hinge_off_y
         created_posts["Front_Left_Post"] = _create_front_post_assembly(
-            "Front_Left_Post", fl_axis_x, fl_axis_y, hinge_z_world)
+            "Front_Left_Post", fl_axis_x, fl_axis_y, hinge_z_world, plate_x_offset=0.027)
 
     if post_conditions.get("Front_Right_Post", lambda: False)():
         fr_axis_x = (W - cx - pw / 2) + hinge_off_x
         fr_axis_y = cy - hinge_off_y
         created_posts["Front_Right_Post"] = _create_front_post_assembly(
-            "Front_Right_Post", fr_axis_x, fr_axis_y, hinge_z_world)
+            "Front_Right_Post", fr_axis_x, fr_axis_y, hinge_z_world, plate_x_offset=-0.027)
 
     # ── FRONT / BACK RAILS ────────────────────────────────────────────────
     fb_rail_len = W - (2 * cw)
@@ -424,7 +420,7 @@ def rebuild_container(root_obj, context=None):
 
         # Shared company info (same seed → same company on both doors)
         company   = get_company_for_seed(container_seed)
-        brand_mat = get_or_create_brand_material(company["name"], company["color"])
+        ### brand_mat = get_or_create_container_material() # get_or_create_brand_material(company["name"], company["color"])
 
         if props.show_left_door:
             left_pivot = bpy.data.objects.new("Left_Door_Pivot", None)
@@ -498,7 +494,7 @@ def rebuild_container(root_obj, context=None):
             col.objects.link(logo_text)
             logo_text.parent = left_door_geo
             # Text is coloured with the company brand colour.
-            logo_text.data.materials.append(brand_mat)
+            ### logo_text.data.materials.append(brand_mat)
 
         if props.show_right_door:
             right_pivot = bpy.data.objects.new("Right_Door_Pivot", None)
@@ -660,10 +656,7 @@ def rebuild_container(root_obj, context=None):
         bows.parent = roof_assembly
 
     # ── MATERIALS ─────────────────────────────────────────────────────────────
-    if getattr(props, "shader_material_mode", 'SINGLE') == 'DOUBLE':
-        metal_mat = get_or_create_container_material_double_sided()
-    else:
-        metal_mat = get_or_create_container_material()
+    metal_mat    = get_or_create_container_material()
     wood_mat     = get_or_create_wood_material()
     decal_mat    = get_or_create_decal_material()
     hardware_mat = get_or_create_hardware_material()

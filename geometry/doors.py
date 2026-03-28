@@ -40,7 +40,7 @@ import bmesh
 import math
 import mathutils
 
-from .primitives import append_box, create_object_from_mesh
+from .primitives import append_box, create_object_from_mesh, ensure_world_uv
 
 # ── Physical constants (metres) ───────────────────────────────────────────────
 FRAME_T = 0.150   # top / bottom rail height (Z)
@@ -106,7 +106,7 @@ def _q(v, step=1.0e-6):
 
 def _door_panel_mesh_name(width, height, n_corr, is_left):
     side = "L" if is_left else "R"
-    return f"ISO_DoorPanel_{side}_{_q(width)}_{_q(height)}_{int(n_corr)}_v2"
+    return f"ISO_DoorPanel_{side}_{_q(width)}_{_q(height)}_{int(n_corr)}_v3"
 
 
 def _build_door_panel_mesh_data(width, height, num_corrugations):
@@ -156,11 +156,22 @@ def _build_door_panel_mesh_data(width, height, num_corrugations):
 
     # ── Corrugated center panel volume ───────────────────────────────────────
     if panel_w > 0.020 and panel_h > 0.020:
-        fwd = _corr_profile(pz0, panel_h, num_corrugations)
-        loop = fwd + [
-            (fwd[-1][0], LEAF_T),   # back-top corner
-            (fwd[0][0],  LEAF_T),   # back-bottom corner
-        ]
+        base = _corr_profile(pz0, panel_h, num_corrugations)
+
+        # Center panel is a thin 2 mm sheet, centered in the door thickness (Y).
+        t = 0.002
+        half_t = t * 0.5
+        corr_depth = CORR_DEPTH if num_corrugations > 0 else 0.0
+
+        def _y_mid(y_profile):
+            # For corrugations: map [0..CORR_DEPTH] → [mid-CORR_DEPTH/2 .. mid+CORR_DEPTH/2]
+            # so the corrugation is centered within the leaf thickness.
+            # For flat: keep mid-surface at LEAF_T/2.
+            return (LEAF_T * 0.5) + (y_profile - corr_depth * 0.5)
+
+        fwd = [(z, _y_mid(y) - half_t) for (z, y) in base]
+        rev = [(z, _y_mid(y) + half_t) for (z, y) in reversed(base)]
+        loop = fwd + rev
         n = len(loop)
 
         base_left = len(verts)
@@ -295,7 +306,7 @@ def _hinge_z_positions(door_height, hinge_count=NUM_HINGES, hinge_height=HINGE_H
     _ = hinge_height
     if hinge_count == 1:
         return [door_height * 0.5]
-    margin = 0.10
+    margin = 0.05
     z0 = margin
     z1 = door_height - margin
     if z1 <= z0:
@@ -385,6 +396,7 @@ def _get_or_create_hinge_master_mesh():
 
     bm.to_mesh(mesh)
     bm.free()
+    ensure_world_uv(mesh)
     return mesh
 
 
