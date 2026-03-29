@@ -33,8 +33,8 @@ from .materials import (
     get_or_create_wood_material,
     get_or_create_decal_material,
     get_or_create_hardware_material,
-    get_or_create_proxy_material,
-    get_or_create_brand_material
+    # get_or_create_proxy_material,
+    # get_or_create_brand_material
 )
 
 
@@ -548,6 +548,8 @@ def rebuild_container(root_obj, context=None):
             cx_right = -door_w * 0.5   # horizontal centre of right door panel
 
             # Decal_Specs: first gap above midpoint, centred
+            sorted_gaps = sorted(gap_zs)
+            above_mid   = [z for z in sorted_gaps if z > door_h * 0.5]
             specs_z    = above_mid[0] if above_mid else (sorted_gaps[-1] if sorted_gaps else door_h * 0.55)
             specs_text = (
                 "MAX GROSS  30,480 KG\n"

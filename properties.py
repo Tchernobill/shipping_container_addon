@@ -68,9 +68,9 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         name="Size",
         description="Standard ISO container size",
         items=[
-            ('10FT', "10ft", "10 foot container"),
-            ('20FT', "20ft", "20 foot standard container"),
-            ('40FT', "40ft", "40 foot standard container"),
+            ('10FT', "10ft", "10ft container"),
+            ('20FT', "20ft", "20ft container"),
+            ('40FT', "40ft", "40ft container"),
         ],
         default='20FT',
         update=update_container_rebuild,
@@ -127,21 +127,37 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
     ) # type: ignore
 
     show_front_panel: bpy.props.BoolProperty(
-        name="Front Frame & Doors", default=True,  update=update_container_rebuild) # type: ignore
+        name="Front Frame & Doors",
+        default=True,
+        update=update_container_rebuild) # type: ignore
     show_left_door:   bpy.props.BoolProperty(
-        name="Left Door",           default=True,  update=update_container_rebuild) # type: ignore
+        name="Left Door",
+        default=True,
+        update=update_container_rebuild) # type: ignore
     show_right_door:  bpy.props.BoolProperty(
-        name="Right Door",          default=True,  update=update_container_rebuild) # type: ignore
+        name="Right Door",
+        default=True,
+        update=update_container_rebuild) # type: ignore
     show_back_panel:  bpy.props.BoolProperty(
-        name="Back Panel",          default=True,  update=update_container_rebuild) # type: ignore
+        name="Back Panel",
+        default=True,
+        update=update_container_rebuild) # type: ignore
     show_left_panel:  bpy.props.BoolProperty(
-        name="Left Panel",          default=True,  update=update_container_rebuild) # type: ignore
+        name="Left Panel",
+        default=True,
+        update=update_container_rebuild) # type: ignore
     show_right_panel: bpy.props.BoolProperty(
-        name="Right Panel",         default=True,  update=update_container_rebuild) # type: ignore
+        name="Right Panel",
+        default=True,
+        update=update_container_rebuild) # type: ignore
     show_floor:       bpy.props.BoolProperty(
-        name="Floor",               default=True,  update=update_container_rebuild) # type: ignore
+        name="Floor",
+        default=True,
+        update=update_container_rebuild) # type: ignore
     show_roof:        bpy.props.BoolProperty(
-        name="Roof",                default=True,  update=update_container_rebuild) # type: ignore
+        name="Roof",
+        default=True,
+        update=update_container_rebuild) # type: ignore
 
     # ── Shader controls ────────────────────────────────────────────────────────
     # These values are stamped as object custom properties onto every metal mesh
@@ -155,16 +171,16 @@ class ShippingContainerProperties(bpy.types.PropertyGroup):
         default=False,
     ) # type: ignore
 
-    shader_material_mode: bpy.props.EnumProperty(
-        name="Sidedness",
-        description="Choose whether the metal shader differs on inside vs outside faces",
-        items=[
-            ('SINGLE', "Single (Outside Only)", "One shader on both sides (classic)"),
-            ('DOUBLE', "Double (Outside + Inside)", "Different shading on backfaces for single-plane panels"),
-        ],
-        default='SINGLE',
-        update=update_shader_mode,
-    ) # type: ignore
+    #shader_material_mode: bpy.props.EnumProperty(
+    #    name="Sidedness",
+    #    description="Choose whether the metal shader differs on inside vs outside faces",
+    #    items=[
+    #        ('SINGLE', "Single (Outside Only)", "One shader on both sides (classic)"),
+    #        ('DOUBLE', "Double (Outside + Inside)", "Different shading on backfaces for single-plane panels"),
+    #    ],
+    #    default='SINGLE',
+    #    update=update_shader_mode,
+    #) # type: ignore
 
     shader_rust_strength: bpy.props.FloatProperty(
         name="Rust Strength",

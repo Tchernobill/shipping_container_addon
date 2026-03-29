@@ -106,9 +106,12 @@ def _build_shader_group():
     cr_palette.color_ramp.interpolation = 'CONSTANT'
     els = cr_palette.color_ramp.elements
     els.remove(els[0])
-    e = els[0]; e.position = _PALETTE[0][0]; e.color = _PALETTE[0][1]
+    e = els[0]
+    e.position = _PALETTE[0][0]
+    e.color = _PALETTE[0][1]
     for pos, col in _PALETTE[1:]:
-        e = els.new(pos); e.color = col
+        e = els.new(pos)
+        e.color = col
 
     # ── Helper: Noise 3D ─────────────────────────────────────────────
     def _noise3d(node_name, ntype, normalize, scale, detail, rough, lac):
@@ -145,18 +148,24 @@ def _build_shader_group():
         n.color_ramp.interpolation = interp
         e = n.color_ramp.elements
         e.remove(e[0])
-        e0 = e[0]; e0.position = stops[0][0]; e0.color = stops[0][1]
+        e0 = e[0]
+        e0.position = stops[0][0]
+        e0.color = stops[0][1]
         for pos, col in stops[1:]:
-            ei = e.new(pos); ei.color = col
+            ei = e.new(pos)
+            ei.color = col
         return n
 
     # ── Helper: math node ────────────────────────────────────────────
     def _math(node_name, op, v0=None, v1=None, clamp=False):
         n = N.new("ShaderNodeMath")
         n.name = n.label = node_name
-        n.operation = op; n.use_clamp = clamp
-        if v0 is not None: n.inputs[0].default_value = v0
-        if v1 is not None: n.inputs[1].default_value = v1
+        n.operation = op
+        n.use_clamp = clamp
+        if v0 is not None:
+            n.inputs[0].default_value = v0
+        if v1 is not None:
+            n.inputs[1].default_value = v1
         return n
 
     # ── Helper: W-offset pair ────────────────────────────────────────
@@ -198,8 +207,10 @@ def _build_shader_group():
 
     mx_rustmask = N.new("ShaderNodeMix")
     mx_rustmask.name = mx_rustmask.label = "MX_RustMask"
-    mx_rustmask.blend_type = 'MULTIPLY'; mx_rustmask.clamp_factor = True
-    mx_rustmask.data_type = 'RGBA'; mx_rustmask.factor_mode = 'UNIFORM'
+    mx_rustmask.blend_type = 'MULTIPLY'
+    mx_rustmask.clamp_factor = True
+    mx_rustmask.data_type = 'RGBA'
+    mx_rustmask.factor_mode = 'UNIFORM'
     mx_rustmask.inputs[0].default_value = 1.0
 
     math_rust = _math("Math_Rust", 'MULTIPLY')
@@ -238,7 +249,8 @@ def _build_shader_group():
 
     mr_stainh = N.new("ShaderNodeMapRange")
     mr_stainh.name = mr_stainh.label = "MR_StainH"
-    mr_stainh.clamp = True; mr_stainh.data_type = 'FLOAT'
+    mr_stainh.clamp = True
+    mr_stainh.data_type = 'FLOAT'
     mr_stainh.interpolation_type = 'LINEAR'
     mr_stainh.inputs[1].default_value = 1.29
     mr_stainh.inputs[2].default_value = 2.59
@@ -254,7 +266,8 @@ def _build_shader_group():
     # ── Dust (4D, W-driven) ──────────────────────────────────────────
     mr_dusth = N.new("ShaderNodeMapRange")
     mr_dusth.name = mr_dusth.label = "MR_DustH"
-    mr_dusth.clamp = True; mr_dusth.data_type = 'FLOAT'
+    mr_dusth.clamp = True
+    mr_dusth.data_type = 'FLOAT'
     mr_dusth.interpolation_type = 'LINEAR'
     mr_dusth.inputs[1].default_value = 0.0
     mr_dusth.inputs[2].default_value = 0.5
@@ -272,7 +285,9 @@ def _build_shader_group():
 
     ao_nd = N.new("ShaderNodeAmbientOcclusion")
     ao_nd.name = ao_nd.label = "AO"
-    ao_nd.inside = False; ao_nd.only_local = False; ao_nd.samples = 16
+    ao_nd.inside = False
+    ao_nd.only_local = False
+    ao_nd.samples = 16
     ao_nd.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)
     ao_nd.inputs[1].default_value = 1.0
 
@@ -290,7 +305,8 @@ def _build_shader_group():
     # ── Scratch (4D, W-driven) ───────────────────────────────────────
     vecrot_scratch = N.new("ShaderNodeVectorRotate")
     vecrot_scratch.name = vecrot_scratch.label = "VecRot_Scratch"
-    vecrot_scratch.invert = False; vecrot_scratch.rotation_type = 'X_AXIS'
+    vecrot_scratch.invert = False
+    vecrot_scratch.rotation_type = 'X_AXIS'
     vecrot_scratch.inputs[1].default_value = (0.0, 0.0, 0.0)
     vecrot_scratch.inputs[3].default_value = -1.49
 
@@ -301,8 +317,10 @@ def _build_shader_group():
 
     wavetex = N.new("ShaderNodeTexWave")
     wavetex.name = wavetex.label = "WaveTex"
-    wavetex.bands_direction = 'DIAGONAL'; wavetex.rings_direction = 'X'
-    wavetex.wave_profile = 'SIN'; wavetex.wave_type = 'BANDS'
+    wavetex.bands_direction = 'DIAGONAL'
+    wavetex.rings_direction = 'X'
+    wavetex.wave_profile = 'SIN'
+    wavetex.wave_type = 'BANDS'
     wavetex.inputs[1].default_value = 1.0
     wavetex.inputs[2].default_value = 0.0
     wavetex.inputs[3].default_value = 0.90
@@ -335,8 +353,10 @@ def _build_shader_group():
     def _mix_rgba(node_name, mode, b_col=None):
         n = N.new("ShaderNodeMix")
         n.name = n.label = node_name
-        n.blend_type = mode; n.clamp_factor = True
-        n.data_type = 'RGBA'; n.factor_mode = 'UNIFORM'
+        n.blend_type = mode
+        n.clamp_factor = True
+        n.data_type = 'RGBA'
+        n.factor_mode = 'UNIFORM'
         if b_col is not None:
             n.inputs[7].default_value = b_col
         return n

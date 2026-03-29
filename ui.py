@@ -42,10 +42,39 @@ def draw_container_controls(layout, obj):
     # ── Core properties ────────────────────────────────────────────────────────
     layout.prop(props, "container_size")
     layout.prop(props, "detail_level")
-    layout.separator()
+    # layout.separator()
     layout.prop(props, "door_open_angle")
     layout.prop(props, "door_corrugations")
     layout.prop(props, "door_hinge_count")
+
+    # -- Container parts ───────────────────────────────────────────────────────
+    box = layout.box()
+    col = box.column()
+
+    col.label(text="Panels", icon='MESH_CUBE')
+    col.prop(props, "show_front_panel", text="Front Panel")
+    # Front panel
+    if props.show_front_panel:
+        sub = col.column(align=True)
+        sub.separator(factor=0.5)
+
+        row = sub.row()
+        row.separator(factor=1.5)  # indent
+        subcol = row.column(align=True)
+
+        subcol.prop(props, "show_left_door",  text="Left Door")
+        subcol.prop(props, "show_right_door", text="Right Door")
+
+    # Others
+    col.prop(props, "show_back_panel",  text="Back Panel")
+    col.prop(props, "show_left_panel",  text="Left Panel")
+    col.prop(props, "show_right_panel", text="Right Panel")
+    col.prop(props, "show_floor",       text="Floor")
+    col.prop(props, "show_roof",        text="Roof")
+
+    
+
+
 
     # ── Bake ──────────────────────────────────────────────────────────────────
     layout.separator()
@@ -53,23 +82,23 @@ def draw_container_controls(layout, obj):
                     text="Bake to Single Mesh", icon='MESH_DATA')
 
     # ── Parts toggles (collapsible) ────────────────────────────────────────────
-    layout.separator()
-    box, open_ = _section(layout, props, "ui_parts_expanded",
-                           "Parts", icon='RESTRICT_VIEW_OFF')
-    if open_:
-        col = box.column(align=True)
-        col.prop(props, "show_front_panel")
-        if props.show_front_panel:
-            sub_row = col.row()
-            sub_row.separator(factor=2.0)
-            sub_col = sub_row.column(align=True)
-            sub_col.prop(props, "show_left_door")
-            sub_col.prop(props, "show_right_door")
-        col.prop(props, "show_back_panel")
-        col.prop(props, "show_left_panel")
-        col.prop(props, "show_right_panel")
-        col.prop(props, "show_floor")
-        col.prop(props, "show_roof")
+    # layout.separator()
+    # box, open_ = _section(layout, props, "ui_parts_expanded",
+    #                        "Parts", icon='RESTRICT_VIEW_OFF')
+    # if open_:
+    #     col = box.column(align=True)
+    #     col.prop(props, "show_front_panel")
+    #     if props.show_front_panel:
+    #         sub_row = col.row()
+    #         sub_row.separator(factor=2.0)
+    #         sub_col = sub_row.column(align=True)
+    #         sub_col.prop(props, "show_left_door")
+    #         sub_col.prop(props, "show_right_door")
+    #     col.prop(props, "show_back_panel")
+    #     col.prop(props, "show_left_panel")
+    #     col.prop(props, "show_right_panel")
+    #     col.prop(props, "show_floor")
+    #     col.prop(props, "show_roof")
 
     # ── Shader (collapsible) ───────────────────────────────────────────────────
     layout.separator()
@@ -77,22 +106,22 @@ def draw_container_controls(layout, obj):
                            "Shader", icon='MATERIAL')
     if open_:
         col = box.column(align=True)
-        col.prop(props, "shader_material_mode")
+        # col.prop(props, "shader_material_mode")
         col.prop(props, "shader_rust_strength",     slider=True)
         col.prop(props, "shader_stain_intensity",   slider=True)
         col.prop(props, "shader_dust_intensity",    slider=True)
         col.prop(props, "shader_scratch_intensity", slider=True)
-        box.separator()
-        col2 = box.column(align=True)
-        col2.prop(props, "shader_color_override_amount", slider=True)
-        col2.prop(props, "shader_color_override")
-        if props.shader_material_mode == 'DOUBLE':
-            box.separator()
-            col3 = box.column(align=True)
-            col3.label(text="Inside (Backfaces)")
-            col3.prop(props, "shader_inside_color")
-            col3.prop(props, "shader_inside_roughness", slider=True)
-            col3.prop(props, "shader_inside_metallic", slider=True)
+        # box.separator()
+        # col2 = box.column(align=True)
+        col.prop(props, "shader_color_override_amount", slider=True)
+        col.prop(props, "shader_color_override")
+        #if props.shader_material_mode == 'DOUBLE':
+        #    box.separator()
+        #    col3 = box.column(align=True)
+        #    col3.label(text="Inside (Backfaces)")
+        #    col3.prop(props, "shader_inside_color")
+        #    col3.prop(props, "shader_inside_roughness", slider=True)
+        #    col3.prop(props, "shader_inside_metallic", slider=True)
 
     # ── Stack Creator (collapsible) ────────────────────────────────────────────
     layout.separator()

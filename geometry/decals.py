@@ -58,7 +58,7 @@ def create_text_decal(name, text, size=0.15, align_x='LEFT', align_y='TOP'):
     """
     font_curve = bpy.data.curves.new(type="FONT", name=name)
     font_curve.body = text
-    font_curve.extrude = 0.002   # Very thin — just enough to be visible
+    # font_curve.extrude = 0.002   # Very thin — just enough to be visible
     font_curve.size = size
     font_curve.align_x = align_x
     font_curve.align_y = align_y
@@ -81,7 +81,7 @@ def create_logo_text(name, company_name, size=0.42):
     """
     font_curve = bpy.data.curves.new(type="FONT", name=name)
     font_curve.body = company_name
-    font_curve.extrude = 0.003   # Slightly thicker than small decals
+    # font_curve.extrude = 0.003   # Slightly thicker than small decals
     font_curve.size = size
     font_curve.align_x = 'CENTER'
     font_curve.align_y = 'CENTER'
